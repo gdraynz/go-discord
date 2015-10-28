@@ -1,5 +1,8 @@
 # Discord Client for Go
 
+[![godoc badge](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/gdraynz/go-discord/discord)
+
+
 Largely inspired by the Discord python client [discord.py](https://github.com/Rapptz/discord.py).
 
 ```golang
