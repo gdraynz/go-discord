@@ -21,13 +21,19 @@ const (
 	apiChannels = apiBase + "/channels"
 )
 
-type Client struct {
-	Handlers map[string]func(interface{})
-
+type discordClient struct {
 	wsConn  *websocket.Conn
 	gateway string
 	token   string
 }
+
+func NewClient() *discordClient {
+	c := discordClient{}
+	c.setupHandlers()
+	return c
+}
+
+// func (c *Client) setupHandlers
 
 func do_request(req *http.Request) (interface{}, error) {
 	client := &http.Client{}
@@ -108,7 +114,7 @@ func (c *Client) Login(email string, password string) error {
 	c.gateway = gatewayResp.(map[string]interface{})["url"].(string)
 
 	// Init handlers map
-	c.Handlers = make(map[string]func(interface{}))
+	c.Handlers = make(map[string]func(Event))
 
 	return nil
 }
@@ -140,25 +146,18 @@ func (c *Client) Stop() {
 }
 
 // AddHandler stores a function to be called asynchronously upon receiving the specified event
-func (c *Client) AddHandler(event string, handler func(interface{})) {
+func (c *Client) AddHandler(event string, handler func(Event)) {
 	log.Printf("Adding handler for %s event", event)
 	c.Handlers[event] = handler
 }
 
-// Keepalive
-
-// c.wsConn.WriteJSON(map[string]int{
-// 	"op": 1,
-// 	"d":  int(time.Now().Unix()),
-// })
-
 func (c *Client) doHandshake() {
 	log.Print("Sending handshake")
-	c.wsConn.WriteJSON(map[string]interface{}{
-		"op": 2,
-		"d": map[string]interface{}{
+	c.wsConn.WriteJSON(Event{
+		OpCode: 2,
+		Data: map[string]interface{}{
 			"token": c.token,
-			"properties": map[string]interface{}{
+			"properties": map[string]string{
 				"$os":               "linux",
 				"$browser":          "go-discord",
 				"$device":           "go-discord",
@@ -170,23 +169,32 @@ func (c *Client) doHandshake() {
 	})
 }
 
+// Keepalive
+// c.wsConn.WriteJSON(map[string]int{
+// 	"op": 1,
+// 	"d":  int(time.Now().Unix()),
+// })
+
 func (c *Client) handleEvent(eventStr []byte) {
-	var event interface{}
+	var event = Event{}
 	if err := json.Unmarshal(eventStr, &event); err != nil {
 		log.Print(err)
 		return
 	}
 
-	eventType := event.(map[string]interface{})["t"].(string)
-	log.Printf("Event %s received", eventType)
+	log.Printf("Event %s received", event.Type)
 
-	handler, ok := c.Handlers[eventType]
+	handler, ok := c.Handlers[event.Type]
 	if ok {
-		log.Print("Handler found")
+		log.Printf("Executing handler for %s", event.Type)
 		go handler(event)
 	} else {
 		log.Print("No handler found, ignoring")
 	}
+}
+
+func (c *Client) newMessage() {
+
 }
 
 // Run init the WebSocket connection and starts listening on it

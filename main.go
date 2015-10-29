@@ -25,9 +25,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	client.AddHandler("READY", func(event interface{}) {
-		log.Print("lol")
-		// log.Print(event)
+	client.AddHandler("newMessage", func(event discord.Event) {
+		var message discord.Message
+		message = event.Data.(map[string]interface{})["d"].(discord.Message)
+		// var message discord.Message
+		// var tmp discord.Message
+		// tmp = message.(discord.Message)
+		log.Print(message)
+		// log.Print(message.Author.GetAvatarURL())
 	})
 
 	client.Run()
