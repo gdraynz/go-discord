@@ -25,5 +25,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	client.AddHandler("READY", func(event interface{}) {
+		log.Print("lol")
+		// log.Print(event)
+	})
+
 	client.Run()
 }

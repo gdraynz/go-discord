@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -23,6 +22,8 @@ const (
 )
 
 type Client struct {
+	Handlers map[string]func(interface{})
+
 	wsConn  *websocket.Conn
 	gateway string
 	token   string
@@ -106,6 +107,9 @@ func (c *Client) Login(email string, password string) error {
 	}
 	c.gateway = gatewayResp.(map[string]interface{})["url"].(string)
 
+	// Init handlers map
+	c.Handlers = make(map[string]func(interface{}))
+
 	return nil
 }
 
@@ -135,34 +139,21 @@ func (c *Client) Stop() {
 	c.wsConn.Close()
 }
 
+// AddHandler stores a function to be called asynchronously upon receiving the specified event
+func (c *Client) AddHandler(event string, handler func(interface{})) {
+	log.Printf("Adding handler for %s event", event)
+	c.Handlers[event] = handler
+}
+
+// Keepalive
+
 // c.wsConn.WriteJSON(map[string]int{
 // 	"op": 1,
 // 	"d":  int(time.Now().Unix()),
 // })
 
-// Run init the WebSocket connection and starts listening on it
-func (c *Client) Run() {
-	log.Printf("Setting up websocket to %s", c.gateway)
-	conn, _, err := websocket.DefaultDialer.Dial(c.gateway, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer conn.Close()
-
-	log.Print("Connected")
-	c.wsConn = conn
-
-	go func() {
-		for {
-			_, message, err := c.wsConn.ReadMessage()
-			if err != nil {
-				log.Print(err)
-				break
-			}
-			log.Printf("recv: %s", message)
-		}
-	}()
-
+func (c *Client) doHandshake() {
+	log.Print("Sending handshake")
 	c.wsConn.WriteJSON(map[string]interface{}{
 		"op": 2,
 		"d": map[string]interface{}{
@@ -177,7 +168,47 @@ func (c *Client) Run() {
 			"v": 3,
 		},
 	})
+}
 
-	time.Sleep(10 * time.Second)
+func (c *Client) handleEvent(eventStr []byte) {
+	var event interface{}
+	if err := json.Unmarshal(eventStr, &event); err != nil {
+		log.Print(err)
+		return
+	}
 
+	eventType := event.(map[string]interface{})["t"].(string)
+	log.Printf("Event %s received", eventType)
+
+	handler, ok := c.Handlers[eventType]
+	if ok {
+		log.Print("Handler found")
+		go handler(event)
+	} else {
+		log.Print("No handler found, ignoring")
+	}
+}
+
+// Run init the WebSocket connection and starts listening on it
+func (c *Client) Run() {
+	log.Printf("Setting up websocket to %s", c.gateway)
+	conn, _, err := websocket.DefaultDialer.Dial(c.gateway, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	log.Print("Connected")
+	c.wsConn = conn
+
+	c.doHandshake()
+
+	for {
+		_, message, err := c.wsConn.ReadMessage()
+		if err != nil {
+			log.Print(err)
+			break
+		}
+		c.handleEvent(message)
+	}
 }
