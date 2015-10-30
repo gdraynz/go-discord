@@ -9,16 +9,37 @@ import (
 	"github.com/gdraynz/go-discord/discord"
 )
 
+var client discord.Client
+
 func messageReceived(message discord.MessageEvent) {
 	log.Printf("%s : %s",
 		message.Data.Author.Name,
 		message.Data.Content,
 	)
+
+	cid := message.Data.ChannelID
+	if client.Channels[cid].Private {
+		err := client.SendMessage(cid, "")
+		if err != nil {
+			log.Print(err)
+		}
+	}
+}
+
+func typingMessage(typing discord.TypingEvent) {
+	cid := typing.Data.ChannelID
+	if client.Channels[cid].Private {
+		err := client.SendMessage(cid, "DONT TALK TO ME")
+		if err != nil {
+			log.Print(err)
+		}
+	}
 }
 
 func main() {
-	client := discord.Client{
-		OnMessageReceived: messageReceived,
+	client = discord.Client{
+		OnMessageCreate: messageReceived,
+		OnTypingStart:   typingMessage,
 	}
 
 	sigc := make(chan os.Signal, 1)

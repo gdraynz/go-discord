@@ -8,6 +8,8 @@ type User struct {
 	ID            string `json:"id"`
 	Name          string `json:"username"`
 	Discriminator string `json:"discriminator"`
+	Email         string `json:"email"`
+	Verified      bool   `json:"verified"`
 	Avatar        string `json:"avatar"`
 }
 
