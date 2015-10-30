@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -21,19 +22,16 @@ const (
 	apiChannels = apiBase + "/channels"
 )
 
-type discordClient struct {
+type Client struct {
+	// Handles READY
+	OnReady func(ReadyEvent)
+	// Handles MESSAGE_CREATE
+	OnMessageReceived func(MessageEvent)
+
 	wsConn  *websocket.Conn
 	gateway string
 	token   string
 }
-
-func NewClient() *discordClient {
-	c := discordClient{}
-	c.setupHandlers()
-	return c
-}
-
-// func (c *Client) setupHandlers
 
 func do_request(req *http.Request) (interface{}, error) {
 	client := &http.Client{}
@@ -113,9 +111,6 @@ func (c *Client) Login(email string, password string) error {
 	}
 	c.gateway = gatewayResp.(map[string]interface{})["url"].(string)
 
-	// Init handlers map
-	c.Handlers = make(map[string]func(Event))
-
 	return nil
 }
 
@@ -145,17 +140,11 @@ func (c *Client) Stop() {
 	c.wsConn.Close()
 }
 
-// AddHandler stores a function to be called asynchronously upon receiving the specified event
-func (c *Client) AddHandler(event string, handler func(Event)) {
-	log.Printf("Adding handler for %s event", event)
-	c.Handlers[event] = handler
-}
-
 func (c *Client) doHandshake() {
 	log.Print("Sending handshake")
-	c.wsConn.WriteJSON(Event{
-		OpCode: 2,
-		Data: map[string]interface{}{
+	c.wsConn.WriteJSON(map[string]interface{}{
+		"op": 2,
+		"d": map[string]interface{}{
 			"token": c.token,
 			"properties": map[string]string{
 				"$os":               "linux",
@@ -169,31 +158,64 @@ func (c *Client) doHandshake() {
 	})
 }
 
-// Keepalive
-// c.wsConn.WriteJSON(map[string]int{
-// 	"op": 1,
-// 	"d":  int(time.Now().Unix()),
-// })
+func (c *Client) handleReady(eventStr []byte) {
+	var ready ReadyEvent
+	if err := json.Unmarshal(eventStr, &ready); err != nil {
+		log.Printf("startKeepalive: %s", err)
+		return
+	}
+
+	go func() {
+		ticker := time.NewTicker(ready.Data.HeartbeatInterval * time.Millisecond)
+		for range ticker.C {
+			timestamp := int(time.Now().Unix())
+			log.Print("Sending keepalive with timestamp %d", timestamp)
+			c.wsConn.WriteJSON(map[string]int{
+				"op": 1,
+				"d":  timestamp,
+			})
+		}
+	}()
+
+	if c.OnReady == nil {
+		log.Print("No handler for READY")
+	} else {
+		c.OnReady(ready)
+	}
+}
+
+func (c *Client) handleMessageCreate(eventStr []byte) {
+	if c.OnMessageReceived == nil {
+		log.Print("No handler for MESSAGE_CREATE")
+	} else {
+		var message MessageEvent
+		if err := json.Unmarshal(eventStr, &message); err != nil {
+			log.Printf("messageCreate: %s", err)
+		} else {
+			c.OnMessageReceived(message)
+		}
+	}
+}
 
 func (c *Client) handleEvent(eventStr []byte) {
-	var event = Event{}
+	var event interface{}
 	if err := json.Unmarshal(eventStr, &event); err != nil {
 		log.Print(err)
 		return
 	}
 
-	log.Printf("Event %s received", event.Type)
+	eventType := event.(map[string]interface{})["t"].(string)
 
-	handler, ok := c.Handlers[event.Type]
-	if ok {
-		log.Printf("Executing handler for %s", event.Type)
-		go handler(event)
-	} else {
-		log.Print("No handler found, ignoring")
+	// TODO: There must be a better way to directly cast the eventStr
+	// to its corresponding object, avoiding double-unmarshal
+	switch eventType {
+	case "READY":
+		c.handleReady(eventStr)
+	case "MESSAGE_CREATE":
+		c.handleMessageCreate(eventStr)
+	default:
+		log.Printf("Ignoring %s", eventType)
 	}
-}
-
-func (c *Client) newMessage() {
 
 }
 
@@ -217,6 +239,6 @@ func (c *Client) Run() {
 			log.Print(err)
 			break
 		}
-		c.handleEvent(message)
+		go c.handleEvent(message)
 	}
 }

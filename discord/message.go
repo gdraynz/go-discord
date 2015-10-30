@@ -1,6 +1,6 @@
 package discord
 
-type Message struct {
+type MessageEvent struct {
 	OpCode int    `json:"op"`
 	Type   string `json:"t"`
 	Data   struct {

@@ -9,8 +9,17 @@ import (
 	"github.com/gdraynz/go-discord/discord"
 )
 
+func messageReceived(message discord.MessageEvent) {
+	log.Printf("%s : %s",
+		message.Data.Author.Name,
+		message.Data.Content,
+	)
+}
+
 func main() {
-	client := discord.Client{}
+	client := discord.Client{
+		OnMessageReceived: messageReceived,
+	}
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt, os.Kill, syscall.SIGTERM)
@@ -24,16 +33,6 @@ func main() {
 	if err := client.LoginFromFile("conf.json"); err != nil {
 		log.Fatal(err)
 	}
-
-	client.AddHandler("newMessage", func(event discord.Event) {
-		var message discord.Message
-		message = event.Data.(map[string]interface{})["d"].(discord.Message)
-		// var message discord.Message
-		// var tmp discord.Message
-		// tmp = message.(discord.Message)
-		log.Print(message)
-		// log.Print(message.Author.GetAvatarURL())
-	})
 
 	client.Run()
 }
