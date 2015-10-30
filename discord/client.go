@@ -24,9 +24,10 @@ const (
 )
 
 type Client struct {
-	OnReady         func(ReadyEvent)
-	OnMessageCreate func(MessageEvent)
-	OnTypingStart   func(TypingEvent)
+	OnReady          func(Ready)
+	OnMessageCreate  func(Message)
+	OnTypingStart    func(Typing)
+	OnPresenceUpdate func(Presence)
 
 	Channels map[string]Channel
 
@@ -77,7 +78,7 @@ func (c *Client) doHandshake() {
 	})
 }
 
-func (c *Client) initChannels(ready ReadyEvent) {
+func (c *Client) initChannels(ready readyEvent) {
 	c.Channels = make(map[string]Channel)
 	for _, server := range ready.Data.Servers {
 		for _, channel := range server.Channels {
@@ -94,7 +95,7 @@ func (c *Client) initChannels(ready ReadyEvent) {
 }
 
 func (c *Client) handleReady(eventStr []byte) {
-	var ready ReadyEvent
+	var ready readyEvent
 	if err := json.Unmarshal(eventStr, &ready); err != nil {
 		log.Printf("handleReady: %s", err)
 		return
@@ -118,7 +119,7 @@ func (c *Client) handleReady(eventStr []byte) {
 	if c.OnReady == nil {
 		log.Print("No handler for READY")
 	} else {
-		c.OnReady(ready)
+		c.OnReady(ready.Data)
 	}
 }
 
@@ -128,14 +129,14 @@ func (c *Client) handleMessageCreate(eventStr []byte) {
 		return
 	}
 
-	var message MessageEvent
+	var message messageEvent
 	if err := json.Unmarshal(eventStr, &message); err != nil {
 		log.Printf("messageCreate: %s", err)
 		return
 	}
 
 	if message.Data.Author.ID != c.user.ID {
-		c.OnMessageCreate(message)
+		c.OnMessageCreate(message.Data)
 	} else {
 		log.Print("Ignoring message from self")
 	}
@@ -147,13 +148,28 @@ func (c *Client) handleTypingStart(eventStr []byte) {
 		return
 	}
 
-	var typing TypingEvent
+	var typing typingEvent
 	if err := json.Unmarshal(eventStr, &typing); err != nil {
 		log.Printf("typingStart: %s", err)
 		return
 	}
 
-	c.OnTypingStart(typing)
+	c.OnTypingStart(typing.Data)
+}
+
+func (c *Client) handlePresenceUpdate(eventStr []byte) {
+	if c.OnPresenceUpdate == nil {
+		log.Print("No handler for PRESENCE_UPDATE")
+		return
+	}
+
+	var presence presenceEvent
+	if err := json.Unmarshal(eventStr, &presence); err != nil {
+		log.Printf("typingStart: %s", err)
+		return
+	}
+
+	c.OnPresenceUpdate(presence.Data)
 }
 
 func (c *Client) handleEvent(eventStr []byte) {
@@ -175,6 +191,8 @@ func (c *Client) handleEvent(eventStr []byte) {
 		c.handleMessageCreate(eventStr)
 	case "TYPING_START":
 		c.handleTypingStart(eventStr)
+	case "PRESENCE_UPDATE":
+		c.handlePresenceUpdate(eventStr)
 	default:
 		log.Printf("Ignoring %s", eventType)
 		log.Printf("event dump: %s", string(eventStr[:]))
@@ -260,6 +278,8 @@ func (c *Client) LoginFromFile(filename string) error {
 	return c.Login(creds.Email, creds.Password)
 }
 
+// SendMessage sends a message to the given channel id
+// TODO: Send to a servername/channelname pair for user-friendlyness ?
 func (c *Client) SendMessage(channelID string, content string) error {
 	_, err := c.post(
 		fmt.Sprintf(apiChannels+"/%s/messages", channelID),

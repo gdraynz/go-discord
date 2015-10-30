@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -9,34 +10,35 @@ import (
 	"github.com/gdraynz/go-discord/discord"
 )
 
-var client discord.Client
+var (
+	flagConf = flag.String("conf", "conf.json", "Configuration file")
 
-func messageReceived(message discord.MessageEvent) {
-	log.Printf("%s : %s",
-		message.Data.Author.Name,
-		message.Data.Content,
-	)
+	client discord.Client
+)
 
-	cid := message.Data.ChannelID
-	if client.Channels[cid].Private {
-		err := client.SendMessage(cid, "")
-		if err != nil {
-			log.Print(err)
-		}
+func messageReceived(message discord.Message) {
+	cid := message.ChannelID
+	if !client.Channels[cid].Private {
+		return
+	}
+
+	switch message.Content {
+	case "info":
+		client.SendMessage(cid, "name: "+message.Author.Name)
+		client.SendMessage(cid, "email: "+message.Author.Email)
 	}
 }
 
-func typingMessage(typing discord.TypingEvent) {
-	cid := typing.Data.ChannelID
+func typingMessage(typing discord.Typing) {
+	cid := typing.ChannelID
 	if client.Channels[cid].Private {
-		err := client.SendMessage(cid, "DONT TALK TO ME")
-		if err != nil {
-			log.Print(err)
-		}
+		client.SendMessage(cid, "DON'T TALK TO ME")
 	}
 }
 
 func main() {
+	flag.Parse()
+
 	client = discord.Client{
 		OnMessageCreate: messageReceived,
 		OnTypingStart:   typingMessage,
@@ -46,12 +48,12 @@ func main() {
 	signal.Notify(sigc, os.Interrupt, os.Kill, syscall.SIGTERM)
 	go func(c chan os.Signal) {
 		sig := <-c
-		log.Printf("Caught signal %s: shutting down.", sig)
+		log.Printf("Caught signal %s: shutting down", sig)
 		client.Stop()
 		os.Exit(0)
 	}(sigc)
 
-	if err := client.LoginFromFile("conf.json"); err != nil {
+	if err := client.LoginFromFile(*flagConf); err != nil {
 		log.Fatal(err)
 	}
 
