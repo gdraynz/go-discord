@@ -13,10 +13,10 @@ import (
     "github.com/gdraynz/go-discord/discord"
 )
 
-func messageReceived(message discord.MessageEvent) {
+func messageReceived(message discord.Message) {
     log.Printf("%s : %s",
-        message.Data.Author.Name,
-        message.Data.Content,
+        message.Author.Name,
+        message.Content,
     )
 }
 
@@ -33,6 +33,7 @@ func main() {
 }
 ```
 
+Some methods may be pretty chaotic but I'm no Go expert and hope it will do for now.
 I'm not putting a lot of time on it, here are many other implementations in different languages :
 
 - [discord.py](https://github.com/Rapptz/discord.py)

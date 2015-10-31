@@ -35,6 +35,7 @@ type Client struct {
 
 	Servers         map[string]Server
 	PrivateChannels map[string]PrivateChannel
+	Games           map[string]string
 
 	user    User
 	wsConn  *websocket.Conn
@@ -368,6 +369,20 @@ func (c *Client) LoginFromFile(filename string) error {
 	return c.Login(creds.Email, creds.Password)
 }
 
+// GetChannel returns the Channel object from the given channel name on the given server name
+func (c *Client) GetChannel(serverName string, channelName string) Channel {
+	var res Channel
+	server := c.GetServer(serverName)
+	for _, channel := range server.Channels {
+		if channel.Name == channelName {
+			res = channel
+			break
+		}
+	}
+	return res
+}
+
+// GetChannelByID returns the Channel object from the given ID as well as its position in its server's channel list
 func (c *Client) GetChannelByID(channelID string) (int, Channel) {
 	var channelPos int
 	var res Channel
@@ -395,14 +410,15 @@ func (c *Client) GetServer(serverName string) Server {
 	return res
 }
 
-// GetChannel returns the Channel object from the given channel name on the given server name
-func (c *Client) GetChannel(serverName string, channelName string) Channel {
-	var res Channel
-	server := c.GetServer(serverName)
-	for _, channel := range server.Channels {
-		if channel.Name == channelName {
-			res = channel
-			break
+// GetChannelByID returns the Channel object from the given ID as well as its position in its server's channel list
+func (c *Client) GetUserByID(userID string) User {
+	var res User
+	for _, server := range c.Servers {
+		for _, member := range server.Members {
+			if member.User.ID == userID {
+				res = member.User
+				break
+			}
 		}
 	}
 	return res
