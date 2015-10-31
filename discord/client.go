@@ -33,7 +33,7 @@ type Client struct {
 	OnChannelDelete        func(Channel)
 	OnPrivateChannelDelete func(PrivateChannel)
 
-	Channels        map[string]Channel
+	Servers         map[string]Server
 	PrivateChannels map[string]PrivateChannel
 
 	user    User
@@ -56,7 +56,6 @@ func do_request(req *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
-	log.Printf("response: %s", string(body[:]))
 	var reqResult = map[string]interface{}{}
 	if err := json.Unmarshal(body, &reqResult); err != nil {
 		return nil, err
@@ -83,27 +82,25 @@ func (c *Client) doHandshake() {
 	})
 }
 
-func (c *Client) initChannels(ready readyEvent) {
-	c.Channels = make(map[string]Channel)
+func (c *Client) initServers(ready Ready) {
+	c.Servers = make(map[string]Server)
 	c.PrivateChannels = make(map[string]PrivateChannel)
-	for _, server := range ready.Data.Servers {
-		for _, channel := range server.Channels {
-			c.Channels[channel.ID] = channel
-		}
+	for _, server := range ready.Servers {
+		c.Servers[server.ID] = server
 	}
-	for _, private := range ready.Data.PrivateChannels {
+	for _, private := range ready.PrivateChannels {
 		c.PrivateChannels[private.ID] = private
 	}
 }
 
 func (c *Client) handleReady(eventStr []byte) {
 	var ready readyEvent
-	log.Print(string(eventStr[:]))
 	if err := json.Unmarshal(eventStr, &ready); err != nil {
 		log.Printf("handleReady: %s", err)
 		return
 	}
 
+	// WebSocket keepalive
 	go func() {
 		ticker := time.NewTicker(ready.Data.HeartbeatInterval * time.Millisecond)
 		for range ticker.C {
@@ -117,7 +114,7 @@ func (c *Client) handleReady(eventStr []byte) {
 	}()
 
 	c.user = ready.Data.User
-	c.initChannels(ready)
+	c.initServers(ready.Data)
 
 	if c.OnReady == nil {
 		log.Print("No handler for READY")
@@ -182,6 +179,7 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 		return
 	}
 
+	// woot
 	isPrivate := channelCreate.(map[string]interface{})["d"].(map[string]interface{})["is_private"].(bool)
 
 	if isPrivate {
@@ -198,7 +196,17 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 		}
 	} else {
 		var channel Channel
-		c.Channels[channel.ID] = channel
+		if err := json.Unmarshal(eventStr, &channel); err != nil {
+			log.Printf("channelCreate: %s", err)
+			return
+		}
+
+		// XXX: Workaround for c.Channels[private.ID].Private = true
+		// https://github.com/golang/go/issues/3117
+		tmp := c.Servers[channel.ServerID]
+		tmp.Channels = append(tmp.Channels, channel)
+		c.Servers[channel.ServerID] = tmp
+
 		if c.OnChannelCreate == nil {
 			log.Print("No handler for CHANNEL_CREATE")
 		} else {
@@ -214,6 +222,7 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 		return
 	}
 
+	// woot #2
 	isPrivate := channelDelete.(map[string]interface{})["d"].(map[string]interface{})["is_private"].(bool)
 
 	if isPrivate {
@@ -223,15 +232,27 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 			return
 		}
 		delete(c.PrivateChannels, privateChannel.ID)
-		if c.OnPrivateChannelCreate == nil {
+		if c.OnPrivateChannelDelete == nil {
 			log.Print("No handler for private CHANNEL_DELETE")
 		} else {
 			c.OnPrivateChannelDelete(privateChannel)
 		}
 	} else {
 		var channel Channel
-		delete(c.Channels, channel.ID)
-		if c.OnChannelCreate == nil {
+		if err := json.Unmarshal(eventStr, &channel); err != nil {
+			log.Printf("channelDelete: %s", err)
+			return
+		}
+
+		// Get channel id in slice of server
+		i, _ := c.GetChannelByID(channel.ID)
+		// XXX: Workaround for c.Channels[private.ID].Private = true
+		// https://github.com/golang/go/issues/3117
+		tmp := c.Servers[channel.ServerID]
+		tmp.Channels = append(tmp.Channels[:i], tmp.Channels[i+1:]...)
+		c.Servers[channel.ServerID] = tmp
+
+		if c.OnChannelDelete == nil {
 			log.Print("No handler for CHANNEL_DELETE")
 		} else {
 			c.OnChannelDelete(channel)
@@ -247,6 +268,7 @@ func (c *Client) handleEvent(eventStr []byte) {
 	}
 
 	eventType := event.(map[string]interface{})["t"].(string)
+	log.Printf("%s : %s", eventType, string(eventStr[:]))
 
 	// TODO: There must be a better way to directly cast the eventStr
 	// to its corresponding object, avoiding double-unmarshal
@@ -254,7 +276,6 @@ func (c *Client) handleEvent(eventStr []byte) {
 	case "READY":
 		c.handleReady(eventStr)
 	case "MESSAGE_CREATE":
-		log.Print(string(eventStr[:]))
 		c.handleMessageCreate(eventStr)
 	case "TYPING_START":
 		c.handleTypingStart(eventStr)
@@ -281,7 +302,6 @@ func (c *Client) get(url string) (interface{}, error) {
 	req.Header.Set("Authorization", c.token)
 
 	// GET the url
-	log.Printf("GET %s", url)
 	return do_request(req)
 }
 
@@ -299,7 +319,6 @@ func (c *Client) post(url string, payload interface{}) (interface{}, error) {
 	req.Header.Set("Content-Type", "application/json")
 
 	// POST the url using application/json
-	log.Printf("POST %s", url)
 	return do_request(req)
 }
 
@@ -349,6 +368,46 @@ func (c *Client) LoginFromFile(filename string) error {
 	return c.Login(creds.Email, creds.Password)
 }
 
+func (c *Client) GetChannelByID(channelID string) (int, Channel) {
+	var channelPos int
+	var res Channel
+	for _, server := range c.Servers {
+		for i, channel := range server.Channels {
+			if channel.ID == channelID {
+				channelPos = i
+				res = channel
+				break
+			}
+		}
+	}
+	return channelPos, res
+}
+
+// GetServer returns the Server object from the given server name
+func (c *Client) GetServer(serverName string) Server {
+	var res Server
+	for _, server := range c.Servers {
+		if server.Name == serverName {
+			res = server
+			break
+		}
+	}
+	return res
+}
+
+// GetChannel returns the Channel object from the given channel name on the given server name
+func (c *Client) GetChannel(serverName string, channelName string) Channel {
+	var res Channel
+	server := c.GetServer(serverName)
+	for _, channel := range server.Channels {
+		if channel.Name == channelName {
+			res = channel
+			break
+		}
+	}
+	return res
+}
+
 // SendMessage sends a message to the given channel id
 // TODO: Send to a servername/channelname pair for user-friendlyness ?
 func (c *Client) SendMessage(channelID string, content string) error {
@@ -358,6 +417,11 @@ func (c *Client) SendMessage(channelID string, content string) error {
 			"content": content,
 		},
 	)
+	if err != nil {
+		log.Printf("Failed to send message to %s", channelID)
+	} else {
+		log.Printf("Message sent to %s", channelID)
+	}
 	return err
 }
 

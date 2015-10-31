@@ -1,24 +1,5 @@
 package discord
 
-import (
-	"time"
-)
-
-// TODO: Some event squash could be done here
-
-type Ready struct {
-	HeartbeatInterval time.Duration    `json:"heartbeat_interval"`
-	User              User             `json:"user"`
-	Servers           []Server         `json:"guilds"`
-	PrivateChannels   []PrivateChannel `json:"private_channels"`
-}
-
-type readyEvent struct {
-	OpCode int    `json:"op"`
-	Type   string `json:"t"`
-	Data   Ready  `json:"d"`
-}
-
 type Message struct {
 	EditedTimestamp string `json:"edited_timestamp"`
 	Timestanmp      string `json:"timestamp"`
@@ -51,22 +32,4 @@ type typingEvent struct {
 	OpCode int    `json:"op"`
 	Type   string `json:"t"`
 	Data   Typing `json:"d"`
-}
-
-type presenceEvent struct {
-	OpCode int      `json:"op"`
-	Type   string   `json:"t"`
-	Data   Presence `json:"d"`
-}
-
-type channelCreateEvent struct {
-	OpCode int     `json:"op"`
-	Type   string  `json:"t"`
-	Data   Channel `json:"d"`
-}
-
-type privateChannelCreateEvent struct {
-	OpCode int            `json:"op"`
-	Type   string         `json:"t"`
-	Data   PrivateChannel `json:"d"`
 }
