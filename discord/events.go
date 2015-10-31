@@ -7,12 +7,10 @@ import (
 // TODO: Some event squash could be done here
 
 type Ready struct {
-	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
-	User              User          `json:"user"`
-	Servers           []Server      `json:"guilds"`
-	PrivateChannels   []struct {
-		ID string `json:"id"`
-	} `json:"private_channels"`
+	HeartbeatInterval time.Duration    `json:"heartbeat_interval"`
+	User              User             `json:"user"`
+	Servers           []Server         `json:"guilds"`
+	PrivateChannels   []PrivateChannel `json:"private_channels"`
 }
 
 type readyEvent struct {
@@ -59,4 +57,16 @@ type presenceEvent struct {
 	OpCode int      `json:"op"`
 	Type   string   `json:"t"`
 	Data   Presence `json:"d"`
+}
+
+type channelCreateEvent struct {
+	OpCode int     `json:"op"`
+	Type   string  `json:"t"`
+	Data   Channel `json:"d"`
+}
+
+type privateChannelCreateEvent struct {
+	OpCode int            `json:"op"`
+	Type   string         `json:"t"`
+	Data   PrivateChannel `json:"d"`
 }

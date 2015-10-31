@@ -7,5 +7,10 @@ type Channel struct {
 	LastMessageID string `json:"last_message_id"`
 	Type          string `json:"type"`
 	Position      int    `json:"position"`
-	Private       bool
+}
+
+type PrivateChannel struct {
+	ID            string `json:"id"`
+	Recipient     User   `json:"recipient"`
+	LastMessageID string `json:"last_message_id"`
 }

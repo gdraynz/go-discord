@@ -24,12 +24,17 @@ const (
 )
 
 type Client struct {
-	OnReady          func(Ready)
-	OnMessageCreate  func(Message)
-	OnTypingStart    func(Typing)
-	OnPresenceUpdate func(Presence)
+	OnReady                func(Ready)
+	OnMessageCreate        func(Message)
+	OnTypingStart          func(Typing)
+	OnPresenceUpdate       func(Presence)
+	OnChannelCreate        func(Channel)
+	OnPrivateChannelCreate func(PrivateChannel)
+	OnChannelDelete        func(Channel)
+	OnPrivateChannelDelete func(PrivateChannel)
 
-	Channels map[string]Channel
+	Channels        map[string]Channel
+	PrivateChannels map[string]PrivateChannel
 
 	user    User
 	wsConn  *websocket.Conn
@@ -80,22 +85,20 @@ func (c *Client) doHandshake() {
 
 func (c *Client) initChannels(ready readyEvent) {
 	c.Channels = make(map[string]Channel)
+	c.PrivateChannels = make(map[string]PrivateChannel)
 	for _, server := range ready.Data.Servers {
 		for _, channel := range server.Channels {
 			c.Channels[channel.ID] = channel
 		}
-		for _, private := range ready.Data.PrivateChannels {
-			// XXX: Workaround for c.Channels[private.ID].Private = true
-			// https://github.com/golang/go/issues/3117
-			var tmp = c.Channels[private.ID]
-			tmp.Private = true
-			c.Channels[private.ID] = tmp
-		}
+	}
+	for _, private := range ready.Data.PrivateChannels {
+		c.PrivateChannels[private.ID] = private
 	}
 }
 
 func (c *Client) handleReady(eventStr []byte) {
 	var ready readyEvent
+	log.Print(string(eventStr[:]))
 	if err := json.Unmarshal(eventStr, &ready); err != nil {
 		log.Printf("handleReady: %s", err)
 		return
@@ -172,6 +175,70 @@ func (c *Client) handlePresenceUpdate(eventStr []byte) {
 	c.OnPresenceUpdate(presence.Data)
 }
 
+func (c *Client) handleChannelCreate(eventStr []byte) {
+	var channelCreate interface{}
+	if err := json.Unmarshal(eventStr, &channelCreate); err != nil {
+		log.Printf("handleChannelCreate: %s", err)
+		return
+	}
+
+	isPrivate := channelCreate.(map[string]interface{})["d"].(map[string]interface{})["is_private"].(bool)
+
+	if isPrivate {
+		var privateChannel PrivateChannel
+		if err := json.Unmarshal(eventStr, &privateChannel); err != nil {
+			log.Printf("privateChannelCreate: %s", err)
+			return
+		}
+		c.PrivateChannels[privateChannel.ID] = privateChannel
+		if c.OnPrivateChannelCreate == nil {
+			log.Print("No handler for private CHANNEL_CREATE")
+		} else {
+			c.OnPrivateChannelCreate(privateChannel)
+		}
+	} else {
+		var channel Channel
+		c.Channels[channel.ID] = channel
+		if c.OnChannelCreate == nil {
+			log.Print("No handler for CHANNEL_CREATE")
+		} else {
+			c.OnChannelCreate(channel)
+		}
+	}
+}
+
+func (c *Client) handleChannelDelete(eventStr []byte) {
+	var channelDelete interface{}
+	if err := json.Unmarshal(eventStr, &channelDelete); err != nil {
+		log.Printf("handleChannelDelete: %s", err)
+		return
+	}
+
+	isPrivate := channelDelete.(map[string]interface{})["d"].(map[string]interface{})["is_private"].(bool)
+
+	if isPrivate {
+		var privateChannel PrivateChannel
+		if err := json.Unmarshal(eventStr, &privateChannel); err != nil {
+			log.Printf("privateChannelCreate: %s", err)
+			return
+		}
+		delete(c.PrivateChannels, privateChannel.ID)
+		if c.OnPrivateChannelCreate == nil {
+			log.Print("No handler for private CHANNEL_DELETE")
+		} else {
+			c.OnPrivateChannelDelete(privateChannel)
+		}
+	} else {
+		var channel Channel
+		delete(c.Channels, channel.ID)
+		if c.OnChannelCreate == nil {
+			log.Print("No handler for CHANNEL_DELETE")
+		} else {
+			c.OnChannelDelete(channel)
+		}
+	}
+}
+
 func (c *Client) handleEvent(eventStr []byte) {
 	var event interface{}
 	if err := json.Unmarshal(eventStr, &event); err != nil {
@@ -193,6 +260,10 @@ func (c *Client) handleEvent(eventStr []byte) {
 		c.handleTypingStart(eventStr)
 	case "PRESENCE_UPDATE":
 		c.handlePresenceUpdate(eventStr)
+	case "CHANNEL_CREATE":
+		c.handleChannelCreate(eventStr)
+	case "CHANNEL_DELETE":
+		c.handleChannelDelete(eventStr)
 	default:
 		log.Printf("Ignoring %s", eventType)
 		log.Printf("event dump: %s", string(eventStr[:]))
