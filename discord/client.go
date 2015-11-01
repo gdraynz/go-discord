@@ -33,6 +33,9 @@ type Client struct {
 	OnChannelDelete        func(Channel)
 	OnPrivateChannelDelete func(PrivateChannel)
 
+	// Print websocket dumps (may be huge)
+	Debug bool
+
 	Servers         map[string]Server
 	PrivateChannels map[string]PrivateChannel
 
@@ -119,6 +122,7 @@ func (c *Client) handleReady(eventStr []byte) {
 	if c.OnReady == nil {
 		log.Print("No handler for READY")
 	} else {
+		log.Print("Client ready, calling OnReady handler")
 		c.OnReady(ready.Data)
 	}
 }
@@ -268,7 +272,10 @@ func (c *Client) handleEvent(eventStr []byte) {
 	}
 
 	eventType := event.(map[string]interface{})["t"].(string)
-	log.Printf("%s : %s", eventType, string(eventStr[:]))
+
+	if c.Debug {
+		log.Printf("%s : %s", eventType, string(eventStr[:]))
+	}
 
 	// TODO: There must be a better way to directly cast the eventStr
 	// to its corresponding object, avoiding double-unmarshal
@@ -301,30 +308,27 @@ func (c *Client) get(url string) (interface{}, error) {
 	}
 	req.Header.Set("Authorization", c.token)
 
-	// GET the url
 	return do_request(req)
 }
 
 // Post sends a POST request with payload to the given url
-func (c *Client) post(url string, payload interface{}) (interface{}, error) {
+func (c *Client) request(method string, url string, payload interface{}) (interface{}, error) {
 	pJson, _ := json.Marshal(payload)
 	contentReader := bytes.NewReader(pJson)
 
 	// Prepare request
-	req, err := http.NewRequest("POST", url, contentReader)
+	req, err := http.NewRequest(method, url, contentReader)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", c.token)
 	req.Header.Set("Content-Type", "application/json")
 
-	// POST the url using application/json
 	return do_request(req)
 }
 
 // Login initialize Discord connection by requesting a token
 func (c *Client) Login(email string, password string) error {
-
 	// Prepare POST json
 	m := map[string]string{
 		"email":    email,
@@ -332,7 +336,7 @@ func (c *Client) Login(email string, password string) error {
 	}
 
 	// Get token
-	tokenResp, err := c.post(apiLogin, m)
+	tokenResp, err := c.request("POST", apiLogin, m)
 	if err != nil {
 		return err
 	}
@@ -423,10 +427,11 @@ func (c *Client) GetUserByID(userID string) User {
 	return res
 }
 
-// SendMessage sends a message to the given channel id
-// TODO: Send to a servername/channelname pair for user-friendlyness ?
+// SendMessage sends a message to the given channel
+// XXX: string sent as channel ID because of Channel/PrivateChannel differences
 func (c *Client) SendMessage(channelID string, content string) error {
-	_, err := c.post(
+	_, err := c.request(
+		"POST",
 		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
 		map[string]string{
 			"content": content,
@@ -440,9 +445,17 @@ func (c *Client) SendMessage(channelID string, content string) error {
 	return err
 }
 
-// SendMessageMention sends a message to the given channel id mentionning users
-func (c *Client) SendMessageMention(channelID string, content string, mentions []string) error {
-	_, err := c.post(
+// SendMessageMention sends a message to the given channel mentionning users
+// XXX: string sent as channel ID because of Channel/PrivateChannel differences
+func (c *Client) SendMessageMention(channelID string, content string, mentions []User) error {
+
+	var userMentions []string
+	for _, user := range mentions {
+		userMentions = append(userMentions, user.ID)
+	}
+
+	_, err := c.request(
+		"POST",
 		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
 		map[string]interface{}{
 			"content":  content,
@@ -453,6 +466,30 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 		log.Printf("Failed to send message to %s", channelID)
 	} else {
 		log.Printf("Message sent to %s", channelID)
+	}
+	return err
+}
+
+func (c *Client) Ban(server Server, user User) error {
+	response, err := c.request(
+		"PUT",
+		fmt.Sprintf("%s/%s/bans/%s", apiServers, server.ID, user.ID),
+		nil,
+	)
+	if c.Debug {
+		log.Print(response)
+	}
+	return err
+}
+
+func (c *Client) Unban(server Server, user User) error {
+	response, err := c.request(
+		"DELETE",
+		fmt.Sprintf("%s/%s/bans/%s", apiServers, server.ID, user.ID),
+		nil,
+	)
+	if c.Debug {
+		log.Print(response)
 	}
 	return err
 }

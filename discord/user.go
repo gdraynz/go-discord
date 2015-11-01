@@ -15,11 +15,22 @@ type User struct {
 	// Discriminator string `json:"discriminator,string"`
 }
 
+// GetAvatarURL returns the user's avatar URL
 func (u *User) GetAvatarURL() string {
 	if u.Avatar != "" {
 		return fmt.Sprintf("%s/avatars/%s.jpg", apiUsers, u.Avatar)
 	}
 	return ""
+}
+
+// Ban bans the user from the given server
+func (u *User) Ban(client Client, server Server) error {
+	return client.Ban(server, *u)
+}
+
+// Unban unbans the user from the given server
+func (u *User) Unban(client Client, server Server) error {
+	return client.Unban(server, *u)
 }
 
 type Presence struct {

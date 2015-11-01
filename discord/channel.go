@@ -14,7 +14,7 @@ func (channel *Channel) SendMessage(client *Client, content string) error {
 	return client.SendMessage(channel.ID, content)
 }
 
-func (channel *Channel) SendMessageMention(client *Client, content string, mentions []string) error {
+func (channel *Channel) SendMessageMention(client *Client, content string, mentions []User) error {
 	return client.SendMessageMention(channel.ID, content, mentions)
 }
 
