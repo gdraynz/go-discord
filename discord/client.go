@@ -35,7 +35,6 @@ type Client struct {
 
 	Servers         map[string]Server
 	PrivateChannels map[string]PrivateChannel
-	Games           map[string]string
 
 	user    User
 	wsConn  *websocket.Conn
@@ -431,6 +430,23 @@ func (c *Client) SendMessage(channelID string, content string) error {
 		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
 		map[string]string{
 			"content": content,
+		},
+	)
+	if err != nil {
+		log.Printf("Failed to send message to %s", channelID)
+	} else {
+		log.Printf("Message sent to %s", channelID)
+	}
+	return err
+}
+
+// SendMessageMention sends a message to the given channel id mentionning users
+func (c *Client) SendMessageMention(channelID string, content string, mentions []string) error {
+	_, err := c.post(
+		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
+		map[string]interface{}{
+			"content":  content,
+			"mentions": mentions,
 		},
 	)
 	if err != nil {

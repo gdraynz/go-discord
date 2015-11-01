@@ -10,6 +10,14 @@ type Channel struct {
 	ServerID      string `json:"guild_id"`
 }
 
+func (channel *Channel) SendMessage(client *Client, content string) error {
+	return client.SendMessage(channel.ID, content)
+}
+
+func (channel *Channel) SendMessageMention(client *Client, content string, mentions []string) error {
+	return client.SendMessageMention(channel.ID, content, mentions)
+}
+
 type channelCreateEvent struct {
 	OpCode int     `json:"op"`
 	Type   string  `json:"t"`
@@ -20,6 +28,10 @@ type PrivateChannel struct {
 	ID            string `json:"id"`
 	Recipient     User   `json:"recipient"`
 	LastMessageID string `json:"last_message_id"`
+}
+
+func (private *PrivateChannel) SendMessage(client *Client, content string) error {
+	return client.SendMessage(private.ID, content)
 }
 
 type privateChannelCreateEvent struct {
