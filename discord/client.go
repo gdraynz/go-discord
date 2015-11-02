@@ -170,7 +170,7 @@ func (c *Client) handlePresenceUpdate(eventStr []byte) {
 
 	var presence presenceEvent
 	if err := json.Unmarshal(eventStr, &presence); err != nil {
-		log.Printf("typingStart: %s", err)
+		log.Printf("presenceUpdate: %s", err)
 		return
 	}
 

@@ -36,11 +36,11 @@ func (u *User) Unban(client Client, server Server) error {
 
 // Presence defines the status of a User
 type Presence struct {
-	Status   string `json:"status"`
-	GameID   int    `json:"game_id"`
-	User     User   `json:"user"`
-	ServerID string `json:"guild_id"`
-	Roles    []Role `json:"roles"`
+	Status   string   `json:"status"`
+	GameID   int      `json:"game_id"`
+	User     User     `json:"user"`
+	ServerID string   `json:"guild_id"`
+	Roles    []string `json:"roles"`
 }
 
 type presenceEvent struct {
