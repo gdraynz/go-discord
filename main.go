@@ -17,27 +17,20 @@ var (
 )
 
 func messageReceived(message discord.Message) {
-	cid := message.ChannelID
-
-	_, ok := client.PrivateChannels[cid]
-	if !ok {
-		return
-	}
-
-	switch message.Content {
-	case "info":
-		client.SendMessage(cid, "Your name: "+message.Author.Name)
-		client.SendMessage(cid, "Your email: "+message.Author.Email)
+	_, ok := client.PrivateChannels[message.ChannelID]
+	if ok {
+		switch message.Content {
+		case "info":
+			client.SendMessage(message.ChannelID, "Your name: "+message.Author.Name)
+			client.SendMessage(message.ChannelID, "Your email: "+message.Author.Email)
+		}
 	}
 }
 
 func typingMessage(typing discord.Typing) {
-	cid := typing.ChannelID
-
-	_, ok := client.PrivateChannels[cid]
-
+	_, ok := client.PrivateChannels[typing.ChannelID]
 	if ok {
-		client.SendMessage(cid, "DON'T TALK TO ME")
+		client.SendMessage(typing.ChannelID, "DON'T TALK TO ME")
 	}
 }
 
