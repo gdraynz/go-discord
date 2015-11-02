@@ -1,4 +1,5 @@
 # Discord client for Go
+<sup><sup>or The only Discord library that doesn't start with a D</sup></sup>
 
 [![godoc badge](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/gdraynz/go-discord/discord)
 
