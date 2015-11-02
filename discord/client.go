@@ -23,6 +23,7 @@ const (
 	apiChannels = apiBase + "/channels"
 )
 
+// Client is the main object, instantiate it to use Discord Websocket API
 type Client struct {
 	OnReady                func(Ready)
 	OnMessageCreate        func(Message)
@@ -45,7 +46,7 @@ type Client struct {
 	token   string
 }
 
-func do_request(req *http.Request) (interface{}, error) {
+func doRequest(req *http.Request) (interface{}, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -308,13 +309,13 @@ func (c *Client) get(url string) (interface{}, error) {
 	}
 	req.Header.Set("Authorization", c.token)
 
-	return do_request(req)
+	return doRequest(req)
 }
 
 // Post sends a POST request with payload to the given url
 func (c *Client) request(method string, url string, payload interface{}) (interface{}, error) {
-	pJson, _ := json.Marshal(payload)
-	contentReader := bytes.NewReader(pJson)
+	payloadJSON, _ := json.Marshal(payload)
+	contentReader := bytes.NewReader(payloadJSON)
 
 	// Prepare request
 	req, err := http.NewRequest(method, url, contentReader)
@@ -324,7 +325,7 @@ func (c *Client) request(method string, url string, payload interface{}) (interf
 	req.Header.Set("Authorization", c.token)
 	req.Header.Set("Content-Type", "application/json")
 
-	return do_request(req)
+	return doRequest(req)
 }
 
 // Login initialize Discord connection by requesting a token
@@ -413,7 +414,7 @@ func (c *Client) GetServer(serverName string) Server {
 	return res
 }
 
-// GetChannelByID returns the Channel object from the given ID as well as its position in its server's channel list
+// GetUserByID returns the User object from the given user ID
 func (c *Client) GetUserByID(userID string) User {
 	var res User
 	for _, server := range c.Servers {
@@ -470,6 +471,7 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 	return err
 }
 
+// Ban bans a user from the giver server
 func (c *Client) Ban(server Server, user User) error {
 	response, err := c.request(
 		"PUT",
@@ -482,6 +484,7 @@ func (c *Client) Ban(server Server, user User) error {
 	return err
 }
 
+// Unban unbans a user from the giver server
 func (c *Client) Unban(server Server, user User) error {
 	response, err := c.request(
 		"DELETE",

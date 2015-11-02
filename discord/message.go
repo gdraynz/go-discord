@@ -1,5 +1,6 @@
 package discord
 
+// Message if the structure for a received message
 type Message struct {
 	EditedTimestamp string `json:"edited_timestamp"`
 	Timestanmp      string `json:"timestamp"`
@@ -22,6 +23,7 @@ type messageEvent struct {
 	Data   Message `json:"d"`
 }
 
+// Typing is the structure received when someone starts typing a message
 type Typing struct {
 	UserID    string `json:"user_id"`
 	Timestamp int    `json:"timestamp"`

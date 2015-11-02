@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// Ready is received when the websocket connection is made and helps set up everything
 type Ready struct {
 	HeartbeatInterval time.Duration    `json:"heartbeat_interval"`
 	User              User             `json:"user"`

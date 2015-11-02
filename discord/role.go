@@ -1,5 +1,6 @@
 package discord
 
+// Role defines a role on a Discord server
 type Role struct {
 	Name        string `json:"name"`
 	ID          string `json:"id"`

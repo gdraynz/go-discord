@@ -1,5 +1,7 @@
 package discord
 
+// Server defines everything server-related, including a list of members,
+// a list of channels, the presence of each member...
 type Server struct {
 	Name         string     `json:"name"`
 	ID           string     `json:"id"`
@@ -17,6 +19,7 @@ type Server struct {
 	Presences    []Presence `json:"presences"`
 }
 
+// Member defines a server member from the Ready event
 type Member struct {
 	User     User   `json:"user"`
 	Roles    []Role `json:"roles"`

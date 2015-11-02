@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+// User defines a user of Disord
 type User struct {
 	ID       string `json:"id"`
 	Name     string `json:"username"`
@@ -33,6 +34,7 @@ func (u *User) Unban(client Client, server Server) error {
 	return client.Unban(server, *u)
 }
 
+// Presence defines the status of a User
 type Presence struct {
 	Status   string `json:"status"`
 	GameID   int    `json:"game_id"`
