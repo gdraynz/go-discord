@@ -188,24 +188,28 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 	isPrivate := channelCreate.(map[string]interface{})["d"].(map[string]interface{})["is_private"].(bool)
 
 	if isPrivate {
-		var privateChannel PrivateChannel
-		if err := json.Unmarshal(eventStr, &privateChannel); err != nil {
+		var event privateChannelCreateEvent
+		if err := json.Unmarshal(eventStr, &event); err != nil {
 			log.Printf("privateChannelCreate: %s", err)
 			return
 		}
+
+		privateChannel := event.Data
 		c.PrivateChannels[privateChannel.ID] = privateChannel
+
 		if c.OnPrivateChannelCreate == nil {
 			log.Print("No handler for private CHANNEL_CREATE")
 		} else {
 			c.OnPrivateChannelCreate(privateChannel)
 		}
 	} else {
-		var channel Channel
-		if err := json.Unmarshal(eventStr, &channel); err != nil {
+		var event channelCreateEvent
+		if err := json.Unmarshal(eventStr, &event); err != nil {
 			log.Printf("channelCreate: %s", err)
 			return
 		}
 
+		channel := event.Data
 		// XXX: Workaround for c.Channels[private.ID].Private = true
 		// https://github.com/golang/go/issues/3117
 		tmp := c.Servers[channel.ServerID]

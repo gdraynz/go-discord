@@ -21,9 +21,9 @@ type Server struct {
 
 // Member defines a server member from the Ready event
 type Member struct {
-	User     User   `json:"user"`
-	Roles    []Role `json:"roles"`
-	Muted    bool   `json:"mute"`
-	Deafed   bool   `json:"deaf"`
-	JoinedAt string `json:"joined_at"`
+	User     User     `json:"user"`
+	Roles    []string `json:"roles"`
+	Muted    bool     `json:"mute"`
+	Deafed   bool     `json:"deaf"`
+	JoinedAt string   `json:"joined_at"`
 }
