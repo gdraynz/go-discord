@@ -188,7 +188,7 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 	isPrivate := channelCreate.(map[string]interface{})["d"].(map[string]interface{})["is_private"].(bool)
 
 	if isPrivate {
-		var event privateChannelCreateEvent
+		var event privateChannelEvent
 		if err := json.Unmarshal(eventStr, &event); err != nil {
 			log.Printf("privateChannelCreate: %s", err)
 			return
@@ -203,7 +203,7 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 			c.OnPrivateChannelCreate(privateChannel)
 		}
 	} else {
-		var event channelCreateEvent
+		var event channelEvent
 		if err := json.Unmarshal(eventStr, &event); err != nil {
 			log.Printf("channelCreate: %s", err)
 			return
@@ -235,24 +235,28 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 	isPrivate := channelDelete.(map[string]interface{})["d"].(map[string]interface{})["is_private"].(bool)
 
 	if isPrivate {
-		var privateChannel PrivateChannel
-		if err := json.Unmarshal(eventStr, &privateChannel); err != nil {
+		var event privateChannelEvent
+		if err := json.Unmarshal(eventStr, &event); err != nil {
 			log.Printf("privateChannelCreate: %s", err)
 			return
 		}
+
+		privateChannel := event.Data
 		delete(c.PrivateChannels, privateChannel.ID)
+
 		if c.OnPrivateChannelDelete == nil {
 			log.Print("No handler for private CHANNEL_DELETE")
 		} else {
 			c.OnPrivateChannelDelete(privateChannel)
 		}
 	} else {
-		var channel Channel
-		if err := json.Unmarshal(eventStr, &channel); err != nil {
+		var event channelEvent
+		if err := json.Unmarshal(eventStr, &event); err != nil {
 			log.Printf("channelDelete: %s", err)
 			return
 		}
 
+		channel := event.Data
 		// Get channel id in slice of server
 		i, _ := c.GetChannelByID(channel.ID)
 		// XXX: Workaround for c.Channels[private.ID].Private = true
@@ -378,9 +382,8 @@ func (c *Client) LoginFromFile(filename string) error {
 }
 
 // GetChannel returns the Channel object from the given channel name on the given server name
-func (c *Client) GetChannel(serverName string, channelName string) Channel {
+func (c *Client) GetChannel(server Server, channelName string) Channel {
 	var res Channel
-	server := c.GetServer(serverName)
 	for _, channel := range server.Channels {
 		if channel.Name == channelName {
 			res = channel
@@ -494,6 +497,49 @@ func (c *Client) Unban(server Server, user User) error {
 		"DELETE",
 		fmt.Sprintf("%s/%s/bans/%s", apiServers, server.ID, user.ID),
 		nil,
+	)
+	if c.Debug {
+		log.Print(response)
+	}
+	return err
+}
+
+// Kick kicks a user from the giver server
+func (c *Client) Kick(server Server, user User) error {
+	response, err := c.request(
+		"DELETE",
+		fmt.Sprintf("%s/%s/members/%s", apiServers, server.ID, user.ID),
+		nil,
+	)
+	if c.Debug {
+		log.Print(response)
+	}
+	return err
+}
+
+// CreateChannel creates a new channel in the given server
+func (c *Client) CreateChannel(server Server, name string, channelType string) error {
+	response, err := c.request(
+		"POST",
+		fmt.Sprintf("%s/%s/channels", apiServers, server.ID),
+		map[string]string{
+			"name": name,
+			"type": channelType,
+		},
+	)
+	if c.Debug {
+		log.Print(response)
+	}
+	return err
+}
+
+// EditChannel edits a channel with the given parameters
+// among (name string, topic string, position int)
+func (c *Client) EditChannel(channel Channel, params map[string]interface{}) error {
+	response, err := c.request(
+		"PATCH",
+		fmt.Sprintf("%s/%s", apiChannels, channel.ID),
+		params,
 	)
 	if c.Debug {
 		log.Print(response)

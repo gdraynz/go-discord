@@ -9,6 +9,9 @@ type Channel struct {
 	Type          string `json:"type"`
 	Position      int    `json:"position"`
 	ServerID      string `json:"guild_id"`
+
+	// Don't know how its formatted yet
+	PermissionOverwrites []interface{} `json:"permission_overwrites"`
 }
 
 // SendMessage sends a message to the channel
@@ -21,7 +24,7 @@ func (channel *Channel) SendMessageMention(client *Client, content string, menti
 	return client.SendMessageMention(channel.ID, content, mentions)
 }
 
-type channelCreateEvent struct {
+type channelEvent struct {
 	OpCode int     `json:"op"`
 	Type   string  `json:"t"`
 	Data   Channel `json:"d"`
@@ -39,7 +42,7 @@ func (private *PrivateChannel) SendMessage(client *Client, content string) error
 	return client.SendMessage(private.ID, content)
 }
 
-type privateChannelCreateEvent struct {
+type privateChannelEvent struct {
 	OpCode int            `json:"op"`
 	Type   string         `json:"t"`
 	Data   PrivateChannel `json:"d"`

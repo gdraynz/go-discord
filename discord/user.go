@@ -34,6 +34,11 @@ func (u *User) Unban(client Client, server Server) error {
 	return client.Unban(server, *u)
 }
 
+// Kick kicks the user from the given server
+func (u *User) Kick(client Client, server Server) error {
+	return client.Kick(server, *u)
+}
+
 // Presence defines the status of a User
 type Presence struct {
 	Status   string   `json:"status"`
