@@ -27,11 +27,15 @@ const (
 type Client struct {
 	OnReady                func(Ready)
 	OnMessageCreate        func(Message)
+	OnMessageAck           func(Message) // Only contains `id` and `channel_id`
+	OnMessageUpdate        func(Message)
+	OnMessageDelete        func(Message) // Only contains `id` and `channel_id`
 	OnTypingStart          func(Typing)
 	OnPresenceUpdate       func(Presence)
 	OnChannelCreate        func(Channel)
-	OnPrivateChannelCreate func(PrivateChannel)
+	OnChannelUpdate        func(Channel)
 	OnChannelDelete        func(Channel)
+	OnPrivateChannelCreate func(PrivateChannel)
 	OnPrivateChannelDelete func(PrivateChannel)
 
 	// Print websocket dumps (may be huge)
@@ -147,6 +151,55 @@ func (c *Client) handleMessageCreate(eventStr []byte) {
 	}
 }
 
+func (c *Client) handleMessageAck(eventStr []byte) {
+	if c.OnMessageAck == nil {
+		log.Print("No handler for MESSAGE_ACK")
+		return
+	}
+
+	var message messageEvent
+	if err := json.Unmarshal(eventStr, &message); err != nil {
+		log.Printf("messageAck: %s", err)
+		return
+	}
+
+	c.OnMessageAck(message.Data)
+}
+
+func (c *Client) handleMessageUpdate(eventStr []byte) {
+	if c.OnMessageUpdate == nil {
+		log.Print("No handler for MESSAGE_UPDATE")
+		return
+	}
+
+	var message messageEvent
+	if err := json.Unmarshal(eventStr, &message); err != nil {
+		log.Printf("messageUpdate: %s", err)
+		return
+	}
+
+	if message.Data.Author.ID != c.user.ID {
+		c.OnMessageUpdate(message.Data)
+	} else {
+		log.Print("Ignoring updated message from self")
+	}
+}
+
+func (c *Client) handleMessageDelete(eventStr []byte) {
+	if c.OnMessageDelete == nil {
+		log.Print("No handler for MESSAGE_DELETE")
+		return
+	}
+
+	var message messageEvent
+	if err := json.Unmarshal(eventStr, &message); err != nil {
+		log.Printf("messageDelete: %s", err)
+		return
+	}
+
+	c.OnMessageDelete(message.Data)
+}
+
 func (c *Client) handleTypingStart(eventStr []byte) {
 	if c.OnTypingStart == nil {
 		log.Print("No handler for TYPING_START")
@@ -224,6 +277,30 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 	}
 }
 
+func (c *Client) handleChannelUpdate(eventStr []byte) {
+	var event channelEvent
+	if err := json.Unmarshal(eventStr, &event); err != nil {
+		log.Printf("channelUpdate: %s", err)
+		return
+	}
+
+	channel := event.Data
+	// Get channel id in slice of server
+	i, _ := c.GetChannelByID(channel.ID)
+	// XXX: Workaround for c.Servers[channel.ServerID].Channels = ...
+	// https://github.com/golang/go/issues/3117
+	tmp := c.Servers[channel.ServerID]
+	tmp.Channels = append(tmp.Channels[:i], tmp.Channels[i+1:]...)
+	tmp.Channels = append(tmp.Channels, channel)
+	c.Servers[channel.ServerID] = tmp
+
+	if c.OnChannelUpdate == nil {
+		log.Print("No handler for CHANNEL_UPDATE")
+	} else {
+		c.OnChannelUpdate(channel)
+	}
+}
+
 func (c *Client) handleChannelDelete(eventStr []byte) {
 	var channelDelete interface{}
 	if err := json.Unmarshal(eventStr, &channelDelete); err != nil {
@@ -259,7 +336,7 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 		channel := event.Data
 		// Get channel id in slice of server
 		i, _ := c.GetChannelByID(channel.ID)
-		// XXX: Workaround for c.Channels[private.ID].Private = true
+		// XXX: Workaround for c.Servers[channel.ServerID].Channels = ...
 		// https://github.com/golang/go/issues/3117
 		tmp := c.Servers[channel.ServerID]
 		tmp.Channels = append(tmp.Channels[:i], tmp.Channels[i+1:]...)
@@ -293,12 +370,20 @@ func (c *Client) handleEvent(eventStr []byte) {
 		c.handleReady(eventStr)
 	case "MESSAGE_CREATE":
 		c.handleMessageCreate(eventStr)
+	case "MESSAGE_ACK":
+		c.handleMessageAck(eventStr)
+	case "MESSAGE_UPDATE":
+		c.handleMessageUpdate(eventStr)
+	case "MESSAGE_DELETE":
+		c.handleMessageDelete(eventStr)
 	case "TYPING_START":
 		c.handleTypingStart(eventStr)
 	case "PRESENCE_UPDATE":
 		c.handlePresenceUpdate(eventStr)
 	case "CHANNEL_CREATE":
 		c.handleChannelCreate(eventStr)
+	case "CHANNEL_UPDATE":
+		c.handleChannelUpdate(eventStr)
 	case "CHANNEL_DELETE":
 		c.handleChannelDelete(eventStr)
 	default:
@@ -474,6 +559,49 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 		log.Printf("Failed to send message to %s", channelID)
 	} else {
 		log.Printf("Message sent to %s", channelID)
+	}
+	return err
+}
+
+// AckMessage acknowledges the message on the given channel
+func (c *Client) AckMessage(channel Channel, message Message) error {
+	response, err := c.request(
+		"POST",
+		fmt.Sprintf("%s/%s/messages/%s/ack", apiChannels, channel.ID, message.ID),
+		nil,
+	)
+	if c.Debug {
+		log.Print(response)
+	}
+	return err
+}
+
+// EditMessage modifies the message from the channel with the given ID.
+// It takes a new content string and a list of mentions.
+func (c *Client) EditMessage(channel Channel, message Message, content string, mentions []string) error {
+	response, err := c.request(
+		"PATCH",
+		fmt.Sprintf("%s/%s/messages/%s", apiChannels, channel.ID, message.ID),
+		map[string]interface{}{
+			"content":  content,
+			"mentions": mentions,
+		},
+	)
+	if c.Debug {
+		log.Print(response)
+	}
+	return err
+}
+
+// DeleteMessage deletes the message from the channel with the given ID
+func (c *Client) DeleteMessage(channel Channel, message Message) error {
+	response, err := c.request(
+		"DELETE",
+		fmt.Sprintf("%s/%s/messages/%s", apiChannels, channel.ID, message.ID),
+		nil,
+	)
+	if c.Debug {
+		log.Print(response)
 	}
 	return err
 }
