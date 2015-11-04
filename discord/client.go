@@ -41,10 +41,10 @@ type Client struct {
 	// Print websocket dumps (may be huge)
 	Debug bool
 
+	User            User
 	Servers         map[string]Server
 	PrivateChannels map[string]PrivateChannel
 
-	user    User
 	wsConn  *websocket.Conn
 	gateway string
 	token   string
@@ -121,7 +121,7 @@ func (c *Client) handleReady(eventStr []byte) {
 		}
 	}()
 
-	c.user = ready.Data.User
+	c.User = ready.Data.User
 	c.initServers(ready.Data)
 
 	if c.OnReady == nil {
@@ -144,7 +144,7 @@ func (c *Client) handleMessageCreate(eventStr []byte) {
 		return
 	}
 
-	if message.Data.Author.ID != c.user.ID {
+	if message.Data.Author.ID != c.User.ID {
 		c.OnMessageCreate(message.Data)
 	} else {
 		log.Print("Ignoring message from self")
@@ -178,7 +178,7 @@ func (c *Client) handleMessageUpdate(eventStr []byte) {
 		return
 	}
 
-	if message.Data.Author.ID != c.user.ID {
+	if message.Data.Author.ID != c.User.ID {
 		c.OnMessageUpdate(message.Data)
 	} else {
 		log.Print("Ignoring updated message from self")
@@ -506,6 +506,18 @@ func (c *Client) GetServer(serverName string) Server {
 	return res
 }
 
+// GetUser returns the User object on the specified server using the given name
+func (c *Client) GetUser(server Server, userName string) User {
+	var res User
+	for _, member := range server.Members {
+		if member.User.Name == userName {
+			res = member.User
+			break
+		}
+	}
+	return res
+}
+
 // GetUserByID returns the User object from the given user ID
 func (c *Client) GetUserByID(userID string) User {
 	var res User
@@ -523,17 +535,15 @@ func (c *Client) GetUserByID(userID string) User {
 // SendMessage sends a message to the given channel
 // XXX: string sent as channel ID because of Channel/PrivateChannel differences
 func (c *Client) SendMessage(channelID string, content string) error {
-	_, err := c.request(
+	response, err := c.request(
 		"POST",
 		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
 		map[string]string{
 			"content": content,
 		},
 	)
-	if err != nil {
-		log.Printf("Failed to send message to %s", channelID)
-	} else {
-		log.Printf("Message sent to %s", channelID)
+	if c.Debug {
+		log.Print(response)
 	}
 	return err
 }
@@ -547,18 +557,16 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 		userMentions = append(userMentions, user.ID)
 	}
 
-	_, err := c.request(
+	response, err := c.request(
 		"POST",
 		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
 		map[string]interface{}{
 			"content":  content,
-			"mentions": mentions,
+			"mentions": userMentions,
 		},
 	)
-	if err != nil {
-		log.Printf("Failed to send message to %s", channelID)
-	} else {
-		log.Printf("Message sent to %s", channelID)
+	if c.Debug {
+		log.Print(response)
 	}
 	return err
 }
