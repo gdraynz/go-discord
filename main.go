@@ -13,6 +13,31 @@ import (
 	"github.com/gdraynz/go-discord/discord"
 )
 
+const (
+	toastIn = "```Almost done...\n" +
+		"\n" +
+		" _____________\n" +
+		"|'->========= \\\n" +
+		"|  \\ ___---___ \\\n" +
+		"| | \\___________\\\n" +
+		"|[> |            |\n" +
+		" \\  |            |\n" +
+		"  \\ |            |\n" +
+		"   \\|____________|\n" +
+		"```"
+	toastOut = "```Toast!\n" +
+		"      ______\n" +
+		" ____((     )_\n" +
+		"|'->==))   (= \\\n" +
+		"|  \\ ||_____|_ \\\n" +
+		"|[> \\___________\\\n" +
+		"| | |            |\n" +
+		" \\  |            |\n" +
+		"  \\ |            |\n" +
+		"   \\|____________|\n" +
+		"```"
+)
+
 var (
 	flagConf = flag.String("conf", "conf.json", "Configuration file")
 
@@ -68,6 +93,12 @@ func uptimeCommand(channelID string) {
 	client.SendMessage(channelID, toSend)
 }
 
+func toastCommand(channelID string) {
+	message, _ := client.SendMessage(channelID, toastIn)
+	time.Sleep(2 * time.Second)
+	client.EditMessage(channelID, message.ID, toastOut)
+}
+
 func main() {
 	flag.Parse()
 
@@ -86,6 +117,11 @@ func main() {
 			Word:    "help",
 			Help:    "Prints the help message",
 			Handler: helpCommand,
+		},
+		"toast": Command{
+			Word:    "toast",
+			Help:    "Yum!",
+			Handler: toastCommand,
 		},
 	}
 

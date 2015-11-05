@@ -46,11 +46,11 @@ type Client struct {
 	PrivateChannels map[string]PrivateChannel
 
 	wsConn  *websocket.Conn
-	gateway string
-	token   string
+	gateway gatewayStruct
+	token   tokenStruct
 }
 
-func doRequest(req *http.Request) (interface{}, error) {
+func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -64,12 +64,11 @@ func doRequest(req *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
-	var reqResult = map[string]interface{}{}
-	if err := json.Unmarshal(body, &reqResult); err != nil {
-		return nil, err
+	if c.Debug {
+		log.Printf("%s %s : %s", req.Method, req.URL.String, string(body[:]))
 	}
 
-	return reqResult, nil
+	return body, err
 }
 
 func (c *Client) doHandshake() {
@@ -77,7 +76,7 @@ func (c *Client) doHandshake() {
 	c.wsConn.WriteJSON(map[string]interface{}{
 		"op": 2,
 		"d": map[string]interface{}{
-			"token": c.token,
+			"token": c.token.Value,
 			"properties": map[string]string{
 				"$os":               "linux",
 				"$browser":          "go-discord",
@@ -394,19 +393,19 @@ func (c *Client) handleEvent(eventStr []byte) {
 }
 
 // Get sends a GET request to the given url
-func (c *Client) get(url string) (interface{}, error) {
+func (c *Client) get(url string) ([]byte, error) {
 	// Prepare request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", c.token)
+	req.Header.Set("Authorization", c.token.Value)
 
-	return doRequest(req)
+	return c.doRequest(req)
 }
 
 // Post sends a POST request with payload to the given url
-func (c *Client) request(method string, url string, payload interface{}) (interface{}, error) {
+func (c *Client) request(method string, url string, payload interface{}) ([]byte, error) {
 	payloadJSON, _ := json.Marshal(payload)
 	contentReader := bytes.NewReader(payloadJSON)
 
@@ -415,10 +414,10 @@ func (c *Client) request(method string, url string, payload interface{}) (interf
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", c.token)
+	req.Header.Set("Authorization", c.token.Value)
 	req.Header.Set("Content-Type", "application/json")
 
-	return doRequest(req)
+	return c.doRequest(req)
 }
 
 // Login initialize Discord connection by requesting a token
@@ -434,14 +433,18 @@ func (c *Client) Login(email string, password string) error {
 	if err != nil {
 		return err
 	}
-	c.token = tokenResp.(map[string]interface{})["token"].(string)
+	if err := json.Unmarshal(tokenResp, &c.token); err != nil {
+		return err
+	}
 
 	// Get websocket gateway
 	gatewayResp, err := c.get(apiGateway)
 	if err != nil {
 		return err
 	}
-	c.gateway = gatewayResp.(map[string]interface{})["url"].(string)
+	if err := json.Unmarshal(gatewayResp, &c.gateway); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -534,7 +537,9 @@ func (c *Client) GetUserByID(userID string) User {
 
 // SendMessage sends a message to the given channel
 // XXX: string sent as channel ID because of Channel/PrivateChannel differences
-func (c *Client) SendMessage(channelID string, content string) error {
+func (c *Client) SendMessage(channelID string, content string) (Message, error) {
+	var message Message
+
 	response, err := c.request(
 		"POST",
 		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
@@ -542,15 +547,21 @@ func (c *Client) SendMessage(channelID string, content string) error {
 			"content": content,
 		},
 	)
-	if c.Debug {
-		log.Print(response)
+	if err != nil {
+		return message, err
 	}
-	return err
+
+	if err := json.Unmarshal(response, &message); err != nil {
+		return message, err
+	}
+
+	return message, err
 }
 
 // SendMessageMention sends a message to the given channel mentionning users
 // XXX: string sent as channel ID because of Channel/PrivateChannel differences
-func (c *Client) SendMessageMention(channelID string, content string, mentions []User) error {
+func (c *Client) SendMessageMention(channelID string, content string, mentions []User) (Message, error) {
+	var message Message
 
 	var userMentions []string
 	for _, user := range mentions {
@@ -565,97 +576,90 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 			"mentions": userMentions,
 		},
 	)
-	if c.Debug {
-		log.Print(response)
+
+	if err := json.Unmarshal(response, &message); err != nil {
+		return message, err
 	}
-	return err
+
+	return message, err
 }
 
 // AckMessage acknowledges the message on the given channel
 func (c *Client) AckMessage(channel Channel, message Message) error {
-	response, err := c.request(
+	_, err := c.request(
 		"POST",
 		fmt.Sprintf("%s/%s/messages/%s/ack", apiChannels, channel.ID, message.ID),
 		nil,
 	)
-	if c.Debug {
-		log.Print(response)
-	}
 	return err
 }
 
 // EditMessage modifies the message from the channel with the given ID.
 // It takes a new content string and a list of mentions.
-func (c *Client) EditMessage(channel Channel, message Message, content string, mentions []string) error {
+func (c *Client) EditMessage(channelID string, messageID string, content string) (Message, error) {
+	var message Message
+
 	response, err := c.request(
 		"PATCH",
-		fmt.Sprintf("%s/%s/messages/%s", apiChannels, channel.ID, message.ID),
+		fmt.Sprintf("%s/%s/messages/%s", apiChannels, channelID, messageID),
 		map[string]interface{}{
-			"content":  content,
-			"mentions": mentions,
+			"content": content,
 		},
 	)
-	if c.Debug {
-		log.Print(response)
+	if err != nil {
+		return message, err
 	}
-	return err
+
+	if err := json.Unmarshal(response, &message); err != nil {
+		return message, err
+	}
+
+	return message, err
 }
 
 // DeleteMessage deletes the message from the channel with the given ID
 func (c *Client) DeleteMessage(channel Channel, message Message) error {
-	response, err := c.request(
+	_, err := c.request(
 		"DELETE",
 		fmt.Sprintf("%s/%s/messages/%s", apiChannels, channel.ID, message.ID),
 		nil,
 	)
-	if c.Debug {
-		log.Print(response)
-	}
 	return err
 }
 
 // Ban bans a user from the giver server
 func (c *Client) Ban(server Server, user User) error {
-	response, err := c.request(
+	_, err := c.request(
 		"PUT",
 		fmt.Sprintf("%s/%s/bans/%s", apiServers, server.ID, user.ID),
 		nil,
 	)
-	if c.Debug {
-		log.Print(response)
-	}
 	return err
 }
 
 // Unban unbans a user from the giver server
 func (c *Client) Unban(server Server, user User) error {
-	response, err := c.request(
+	_, err := c.request(
 		"DELETE",
 		fmt.Sprintf("%s/%s/bans/%s", apiServers, server.ID, user.ID),
 		nil,
 	)
-	if c.Debug {
-		log.Print(response)
-	}
 	return err
 }
 
 // Kick kicks a user from the giver server
 func (c *Client) Kick(server Server, user User) error {
-	response, err := c.request(
+	_, err := c.request(
 		"DELETE",
 		fmt.Sprintf("%s/%s/members/%s", apiServers, server.ID, user.ID),
 		nil,
 	)
-	if c.Debug {
-		log.Print(response)
-	}
 	return err
 }
 
 // CreateChannel creates a new channel in the given server
 func (c *Client) CreateChannel(server Server, name string, channelType string) error {
-	response, err := c.request(
+	_, err := c.request(
 		"POST",
 		fmt.Sprintf("%s/%s/channels", apiServers, server.ID),
 		map[string]string{
@@ -663,30 +667,24 @@ func (c *Client) CreateChannel(server Server, name string, channelType string) e
 			"type": channelType,
 		},
 	)
-	if c.Debug {
-		log.Print(response)
-	}
 	return err
 }
 
 // EditChannel edits a channel with the given parameters
 // among (name string, topic string, position int)
 func (c *Client) EditChannel(channel Channel, params map[string]interface{}) error {
-	response, err := c.request(
+	_, err := c.request(
 		"PATCH",
 		fmt.Sprintf("%s/%s", apiChannels, channel.ID),
 		params,
 	)
-	if c.Debug {
-		log.Print(response)
-	}
 	return err
 }
 
 // Run init the WebSocket connection and starts listening on it
 func (c *Client) Run() {
-	log.Printf("Setting up websocket to %s", c.gateway)
-	conn, _, err := websocket.DefaultDialer.Dial(c.gateway, nil)
+	log.Printf("Setting up websocket to %s", c.gateway.Value)
+	conn, _, err := websocket.DefaultDialer.Dial(c.gateway.Value, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

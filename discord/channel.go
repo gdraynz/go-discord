@@ -15,12 +15,12 @@ type Channel struct {
 }
 
 // SendMessage sends a message to the channel
-func (channel *Channel) SendMessage(client *Client, content string) error {
+func (channel *Channel) SendMessage(client *Client, content string) (Message, error) {
 	return client.SendMessage(channel.ID, content)
 }
 
 // SendMessage sends a message to the channel includind user mentions
-func (channel *Channel) SendMessageMention(client *Client, content string, mentions []User) error {
+func (channel *Channel) SendMessageMention(client *Client, content string, mentions []User) (Message, error) {
 	return client.SendMessageMention(channel.ID, content, mentions)
 }
 
@@ -38,7 +38,7 @@ type PrivateChannel struct {
 }
 
 // SendMessage sends a message to the user linked to the PrivateChannel
-func (private *PrivateChannel) SendMessage(client *Client, content string) error {
+func (private *PrivateChannel) SendMessage(client *Client, content string) (Message, error) {
 	return client.SendMessage(private.ID, content)
 }
 
