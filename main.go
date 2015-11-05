@@ -37,7 +37,7 @@ func messageReceived(message discord.Message) {
 	}
 
 	args := strings.Split(message.Content, " ")
-	if len(args) < 2 {
+	if len(args)-1 < 1 {
 		return
 	}
 
@@ -69,7 +69,7 @@ func uptimeCommand(message discord.Message, args ...string) {
 }
 
 func reminderCommand(message discord.Message, args ...string) {
-	if len(args) < 3 {
+	if len(args)-1 < 2 {
 		return
 	}
 
@@ -80,10 +80,21 @@ func reminderCommand(message discord.Message, args ...string) {
 			fmt.Sprintf("Couldn't understand that :("),
 		)
 	} else {
+		var reminderMessage string
+		if len(args)-1 < 3 {
+			reminderMessage = fmt.Sprintf("@%s ping !", message.Author.Name)
+		} else {
+			reminderMessage = fmt.Sprintf(
+				"@%s %s !",
+				message.Author.Name,
+				strings.Join(args[3:], " "),
+			)
+		}
+		log.Printf("Remind %s in %s", message.Author.Name, duration.String())
 		time.AfterFunc(duration, func() {
 			client.SendMessageMention(
 				message.ChannelID,
-				fmt.Sprintf("@%s ping !", message.Author.Name),
+				reminderMessage,
 				[]discord.User{message.Author},
 			)
 		})
@@ -110,7 +121,7 @@ func main() {
 			Handler: helpCommand,
 		},
 		"reminder": Command{
-			Word:    "reminder",
+			Word:    "reminder <time> [<message>]",
 			Help:    "Reminds you of something",
 			Handler: reminderCommand,
 		},
