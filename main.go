@@ -13,31 +13,6 @@ import (
 	"github.com/gdraynz/go-discord/discord"
 )
 
-const (
-	toastIn = "```Almost done...\n" +
-		"\n" +
-		" _____________\n" +
-		"|'->========= \\\n" +
-		"|  \\ ___---___ \\\n" +
-		"| | \\___________\\\n" +
-		"|[> |            |\n" +
-		" \\  |            |\n" +
-		"  \\ |            |\n" +
-		"   \\|____________|\n" +
-		"```"
-	toastOut = "```Toast!\n" +
-		"      ______\n" +
-		" ____((     )_\n" +
-		"|'->==))   (= \\\n" +
-		"|  \\ ||_____|_ \\\n" +
-		"|[> \\___________\\\n" +
-		"| | |            |\n" +
-		" \\  |            |\n" +
-		"  \\ |            |\n" +
-		"   \\|____________|\n" +
-		"```"
-)
-
 var (
 	flagConf = flag.String("conf", "conf.json", "Configuration file")
 
@@ -49,7 +24,7 @@ var (
 type Command struct {
 	Word    string
 	Help    string
-	Handler func(ChannelID string)
+	Handler func(discord.Message, ...string)
 }
 
 func onReady(ready discord.Ready) {
@@ -68,21 +43,21 @@ func messageReceived(message discord.Message) {
 
 	command, ok := commands[args[1]]
 	if ok {
-		command.Handler(message.ChannelID)
+		command.Handler(message, args...)
 	} else {
 		log.Printf("No command '%s'", args[1])
 	}
 }
 
-func helpCommand(channelID string) {
+func helpCommand(message discord.Message, args ...string) {
 	toSend := "Available commands:\n"
 	for _, command := range commands {
 		toSend += fmt.Sprintf("`%s` %s\n", command.Word, command.Help)
 	}
-	client.SendMessage(channelID, toSend)
+	client.SendMessage(message.ChannelID, toSend)
 }
 
-func uptimeCommand(channelID string) {
+func uptimeCommand(message discord.Message, args ...string) {
 	uptime := time.Now().Sub(startTime)
 	toSend := fmt.Sprintf(
 		"`Uptime` %0.2d:%02d:%02d",
@@ -90,13 +65,29 @@ func uptimeCommand(channelID string) {
 		int(uptime.Minutes()),
 		int(uptime.Seconds()),
 	)
-	client.SendMessage(channelID, toSend)
+	client.SendMessage(message.ChannelID, toSend)
 }
 
-func toastCommand(channelID string) {
-	message, _ := client.SendMessage(channelID, toastIn)
-	time.Sleep(2 * time.Second)
-	client.EditMessage(channelID, message.ID, toastOut)
+func reminderCommand(message discord.Message, args ...string) {
+	if len(args) < 3 {
+		return
+	}
+
+	duration, err := time.ParseDuration(args[2])
+	if err != nil {
+		client.SendMessage(
+			message.ChannelID,
+			fmt.Sprintf("Couldn't understand that :("),
+		)
+	} else {
+		time.AfterFunc(duration, func() {
+			client.SendMessageMention(
+				message.ChannelID,
+				fmt.Sprintf("@%s ping !", message.Author.Name),
+				[]discord.User{message.Author},
+			)
+		})
+	}
 }
 
 func main() {
@@ -118,10 +109,10 @@ func main() {
 			Help:    "Prints the help message",
 			Handler: helpCommand,
 		},
-		"toast": Command{
-			Word:    "toast",
-			Help:    "Yum!",
-			Handler: toastCommand,
+		"reminder": Command{
+			Word:    "reminder",
+			Help:    "Reminds you of something",
+			Handler: reminderCommand,
 		},
 	}
 
