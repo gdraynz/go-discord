@@ -60,6 +60,21 @@ func getUptime() string {
 	)
 }
 
+func getUserCount() string {
+	users := 0
+	channels := 0
+	for _, server := range client.Servers {
+		users += len(server.Members)
+		channels += len(server.Channels)
+	}
+	return fmt.Sprintf(
+		"%d in %d channels and %d servers",
+		users,
+		channels,
+		len(client.Servers),
+	)
+}
+
 func statsCommand(message discord.Message, args ...string) {
 	stats := runtime.MemStats{}
 	runtime.ReadMemStats(&stats)
@@ -67,9 +82,11 @@ func statsCommand(message discord.Message, args ...string) {
 		message.ChannelID,
 		fmt.Sprintf("Bot statistics:\n"+
 			"`Memory used` %.2f Mb\n"+
-			"`Number of servers` %d\n"+
+			"`Users in touch` %s\n"+
 			"`Uptime` %s",
-			float64(stats.Alloc)/1000000, len(client.Servers), getUptime(),
+			float64(stats.Alloc)/1000000,
+			getUserCount(),
+			getUptime(),
 		),
 	)
 }
