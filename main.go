@@ -104,7 +104,11 @@ func reminderCommand(message discord.Message, args ...string) {
 				strings.Join(args[3:], " "),
 			)
 		}
-		log.Printf("Remind %s in %s", message.Author.Name, duration.String())
+		client.SendMessage(
+			message.ChannelID,
+			fmt.Sprintf("Aight! I will ping you in %s.", duration.String()),
+		)
+		log.Printf("Reminding %s in %s", message.Author.Name, duration.String())
 		time.AfterFunc(duration, func() {
 			client.SendMessageMention(
 				message.ChannelID,
