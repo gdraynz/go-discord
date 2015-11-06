@@ -19,6 +19,12 @@ type Server struct {
 	Presences    []Presence `json:"presences"`
 }
 
+type serverEvent struct {
+	OpCode int    `json:"op"`
+	Type   string `json:"t"`
+	Data   Server `json:"d"`
+}
+
 // Member defines a server member from the Ready event
 type Member struct {
 	User     User     `json:"user"`

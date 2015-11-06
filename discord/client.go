@@ -37,6 +37,8 @@ type Client struct {
 	OnChannelDelete        func(Channel)
 	OnPrivateChannelCreate func(PrivateChannel)
 	OnPrivateChannelDelete func(PrivateChannel)
+	OnServerCreate         func(Server)
+	OnServerDelete         func(Server)
 
 	// Print websocket dumps (may be huge)
 	Debug bool
@@ -349,6 +351,40 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 	}
 }
 
+func (c *Client) handleGuildCreate(eventStr []byte) {
+	var event serverEvent
+	if err := json.Unmarshal(eventStr, &event); err != nil {
+		log.Printf("guildCreate: %s", err)
+		return
+	}
+
+	server := event.Data
+	c.Servers[server.ID] = server
+
+	if c.OnServerCreate == nil {
+		log.Print("No handler for GUILD_CREATE")
+	} else {
+		c.OnServerCreate(server)
+	}
+}
+
+func (c *Client) handleGuildDelete(eventStr []byte) {
+	var event serverEvent
+	if err := json.Unmarshal(eventStr, &event); err != nil {
+		log.Printf("guildDelete: %s", err)
+		return
+	}
+
+	server := event.Data
+	delete(c.Servers, server.ID)
+
+	if c.OnServerDelete == nil {
+		log.Print("No handler for GUILD_DELETE")
+	} else {
+		c.OnServerDelete(server)
+	}
+}
+
 func (c *Client) handleEvent(eventStr []byte) {
 	var event interface{}
 	if err := json.Unmarshal(eventStr, &event); err != nil {
@@ -385,6 +421,10 @@ func (c *Client) handleEvent(eventStr []byte) {
 		c.handleChannelUpdate(eventStr)
 	case "CHANNEL_DELETE":
 		c.handleChannelDelete(eventStr)
+	case "GUILD_CREATE":
+		c.handleGuildCreate(eventStr)
+	case "GUILD_DELETE":
+		c.handleGuildDelete(eventStr)
 	default:
 		log.Printf("Ignoring %s", eventType)
 		log.Printf("event dump: %s", string(eventStr[:]))

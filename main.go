@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -49,22 +50,35 @@ func messageReceived(message discord.Message) {
 	}
 }
 
+func getUptime() string {
+	uptime := time.Now().Sub(startTime)
+	return fmt.Sprintf(
+		"%0.2d:%02d:%02d",
+		int(uptime.Hours()),
+		int(uptime.Minutes())%60,
+		int(uptime.Seconds())%60,
+	)
+}
+
+func statsCommand(message discord.Message, args ...string) {
+	stats := runtime.MemStats{}
+	runtime.ReadMemStats(&stats)
+	client.SendMessage(
+		message.ChannelID,
+		fmt.Sprintf("Bot statistics:\n"+
+			"`Memory used` %.2f Mb\n"+
+			"`Number of servers` %d\n"+
+			"`Uptime` %s",
+			float64(stats.Alloc)/1000000, len(client.Servers), getUptime(),
+		),
+	)
+}
+
 func helpCommand(message discord.Message, args ...string) {
 	toSend := "Available commands:\n"
 	for _, command := range commands {
 		toSend += fmt.Sprintf("`%s` %s\n", command.Word, command.Help)
 	}
-	client.SendMessage(message.ChannelID, toSend)
-}
-
-func uptimeCommand(message discord.Message, args ...string) {
-	uptime := time.Now().Sub(startTime)
-	toSend := fmt.Sprintf(
-		"`Uptime` %0.2d:%02d:%02d",
-		int(uptime.Hours()),
-		int(uptime.Minutes()),
-		int(uptime.Seconds()),
-	)
 	client.SendMessage(message.ChannelID, toSend)
 }
 
@@ -110,20 +124,20 @@ func main() {
 	}
 
 	commands = map[string]Command{
-		"uptime": Command{
-			Word:    "uptime",
-			Help:    "Shows the bot's uptime",
-			Handler: uptimeCommand,
-		},
 		"help": Command{
 			Word:    "help",
 			Help:    "Prints the help message",
 			Handler: helpCommand,
 		},
 		"reminder": Command{
-			Word:    "reminder <time> [<message>]",
-			Help:    "Reminds you of something",
+			Word:    "reminder <time [XhYmZs]> [<message>]",
+			Help:    "Reminds you of something in X hours Y minutes Z seconds",
 			Handler: reminderCommand,
+		},
+		"stats": Command{
+			Word:    "stats",
+			Help:    "Prints bot statistics",
+			Handler: statsCommand,
 		},
 	}
 
