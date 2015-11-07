@@ -6,17 +6,17 @@ type Server struct {
 	Name         string     `json:"name"`
 	ID           string     `json:"id"`
 	OwnerID      string     `json:"owner_id"`
-	Roles        []Role     `json:"roles"`
 	Region       string     `json:"region"`
 	AfkTimeout   int        `json:"afk_timeout"`
 	AfkChannelID string     `json:"afk_channel_id"`
-	Members      []Member   `json:"members`
 	Type         string     `json:"type"`
-	Channels     []Channel  `json:"channels"`
 	Icon         string     `json:"icon"`
 	JoinedAt     string     `json:"joined_at"`
 	Large        bool       `json:"large"`
 	Presences    []Presence `json:"presences"`
+	Roles        []Role     `json:"roles"`
+	Members      []Member   `json:"members`
+	Channels     []Channel  `json:"channels"`
 }
 
 type serverEvent struct {
@@ -32,4 +32,11 @@ type Member struct {
 	Muted    bool     `json:"mute"`
 	Deafed   bool     `json:"deaf"`
 	JoinedAt string   `json:"joined_at"`
+	ServerID string   `json:"guild_id"`
+}
+
+type memberEvent struct {
+	OpCode int    `json:"op"`
+	Type   string `json:"t"`
+	Data   Member `json:"d"`
 }

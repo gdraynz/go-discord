@@ -146,7 +146,7 @@ func voiceCommand(message discord.Message, args ...string) {
 
 	server := message.GetServer(&client)
 	voiceChannel := client.GetChannel(server, "General")
-	if err := client.SendAudio(voiceChannel, "dummy"); err != nil {
+	if err := client.SendAudio(voiceChannel, "Blue.mp3"); err != nil {
 		log.Print(err)
 	}
 }
@@ -177,11 +177,11 @@ func main() {
 			Help:    "Prints bot statistics",
 			Handler: statsCommand,
 		},
-		"voice": Command{
-			Word:    "voice",
-			Help:    "(dev)",
-			Handler: voiceCommand,
-		},
+		// "voice": Command{
+		// 	Word:    "voice",
+		// 	Help:    "(dev)",
+		// 	Handler: voiceCommand,
+		// },
 	}
 
 	sigc := make(chan os.Signal, 1)

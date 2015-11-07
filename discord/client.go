@@ -9,9 +9,11 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/tcolgate/mp3"
 )
 
 const (
@@ -42,6 +44,8 @@ type Client struct {
 	OnPrivateChannelDelete func(PrivateChannel)
 	OnServerCreate         func(Server)
 	OnServerDelete         func(Server)
+	OnServerMemberAdd      func(Member)
+	OnServerMemberDelete   func(Member)
 
 	// Print websocket dumps (may be huge)
 	Debug bool
@@ -100,6 +104,7 @@ func (c *Client) initServers(ready Ready) {
 	for _, server := range ready.Servers {
 		// Set ServerID of each channel
 		for i := range server.Channels {
+			// https://github.com/golang/go/issues/3117
 			tmp := server.Channels[i]
 			tmp.ServerID = server.ID
 			server.Channels[i] = tmp
@@ -394,6 +399,48 @@ func (c *Client) handleGuildDelete(eventStr []byte) {
 	}
 }
 
+func (c *Client) handleGuildMemberAdd(eventStr []byte) {
+	var event memberEvent
+	if err := json.Unmarshal(eventStr, &event); err != nil {
+		log.Printf("guildMemberAdd: %s", err)
+		return
+	}
+
+	member := event.Data
+	// https://github.com/golang/go/issues/3117
+	tmp := c.Servers[member.ServerID]
+	tmp.Members = append(tmp.Members, member)
+	c.Servers[member.ServerID] = tmp
+
+	if c.OnServerMemberAdd == nil {
+		log.Print("No handler for GUILD_MEMBER_ADD")
+	} else {
+		c.OnServerMemberAdd(member)
+	}
+}
+
+func (c *Client) handleGuildMemberDelete(eventStr []byte) {
+	var event memberEvent
+	if err := json.Unmarshal(eventStr, &event); err != nil {
+		log.Printf("guildMemberDelete: %s", err)
+		return
+	}
+
+	member := event.Data
+	// Get member id in slice of server
+	i := c.getMemberIndex(member.User.ID)
+	// https://github.com/golang/go/issues/3117
+	tmp := c.Servers[member.ServerID]
+	tmp.Members = append(tmp.Members[:i], tmp.Members[i+1:]...)
+	c.Servers[member.ServerID] = tmp
+
+	if c.OnServerMemberDelete == nil {
+		log.Print("No handler for GUILD_MEMBER_DELETE")
+	} else {
+		c.OnServerMemberDelete(member)
+	}
+}
+
 func (c *Client) handleEvent(eventStr []byte) {
 	var event interface{}
 	if err := json.Unmarshal(eventStr, &event); err != nil {
@@ -434,6 +481,10 @@ func (c *Client) handleEvent(eventStr []byte) {
 		c.handleGuildCreate(eventStr)
 	case "GUILD_DELETE":
 		c.handleGuildDelete(eventStr)
+	case "GUILD_MEMBER_ADD":
+		c.handleGuildMemberAdd(eventStr)
+	case "GUILD_MEMBER_DELETE":
+		c.handleGuildMemberDelete(eventStr)
 	default:
 		log.Printf("Ignoring %s", eventType)
 		log.Printf("event dump: %s", string(eventStr[:]))
@@ -452,6 +503,19 @@ func (c *Client) getChannelIndex(channelID string) int {
 		}
 	}
 	return channelPos
+}
+
+func (c *Client) getMemberIndex(memberID string) int {
+	var memberPos int
+	for _, server := range c.Servers {
+		for i, member := range server.Members {
+			if member.User.ID == memberID {
+				memberPos = i
+				break
+			}
+		}
+	}
+	return memberPos
 }
 
 // Get sends a GET request to the given url
@@ -786,7 +850,20 @@ func (c *Client) SendAudio(channel Channel, file string) error {
 		return err
 	}
 	defer udp.Close()
-	log.Print("UDP connected to %s", udp.RemoteAddr().String())
+	log.Printf("UDP connected to %s", udp.RemoteAddr().String())
+
+	fReader, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+
+	decoder := mp3.NewDecoder(fReader)
+
+	var f mp3.Frame
+	if err := decoder.Decode(&f); err != nil {
+		return nil
+	}
+	log.Print(f.Duration())
 
 	return nil
 }
