@@ -3,9 +3,11 @@ package discord
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -21,6 +23,7 @@ const (
 	apiLogout   = apiBase + "/auth/logout"
 	apiServers  = apiBase + "/guilds"
 	apiChannels = apiBase + "/channels"
+	apiVoice    = apiBase + "/voice"
 )
 
 // Client is the main object, instantiate it to use Discord Websocket API
@@ -95,6 +98,12 @@ func (c *Client) initServers(ready Ready) {
 	c.Servers = make(map[string]Server)
 	c.PrivateChannels = make(map[string]PrivateChannel)
 	for _, server := range ready.Servers {
+		// Set ServerID of each channel
+		for i := range server.Channels {
+			tmp := server.Channels[i]
+			tmp.ServerID = server.ID
+			server.Channels[i] = tmp
+		}
 		c.Servers[server.ID] = server
 	}
 	for _, private := range ready.PrivateChannels {
@@ -287,7 +296,7 @@ func (c *Client) handleChannelUpdate(eventStr []byte) {
 
 	channel := event.Data
 	// Get channel id in slice of server
-	i, _ := c.GetChannelByID(channel.ID)
+	i := c.getChannelIndex(channel.ID)
 	// XXX: Workaround for c.Servers[channel.ServerID].Channels = ...
 	// https://github.com/golang/go/issues/3117
 	tmp := c.Servers[channel.ServerID]
@@ -336,7 +345,7 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 
 		channel := event.Data
 		// Get channel id in slice of server
-		i, _ := c.GetChannelByID(channel.ID)
+		i := c.getChannelIndex(channel.ID)
 		// XXX: Workaround for c.Servers[channel.ServerID].Channels = ...
 		// https://github.com/golang/go/issues/3117
 		tmp := c.Servers[channel.ServerID]
@@ -432,6 +441,19 @@ func (c *Client) handleEvent(eventStr []byte) {
 
 }
 
+func (c *Client) getChannelIndex(channelID string) int {
+	var channelPos int
+	for _, server := range c.Servers {
+		for i, channel := range server.Channels {
+			if channel.ID == channelID {
+				channelPos = i
+				break
+			}
+		}
+	}
+	return channelPos
+}
+
 // Get sends a GET request to the given url
 func (c *Client) get(url string) ([]byte, error) {
 	// Prepare request
@@ -522,19 +544,17 @@ func (c *Client) GetChannel(server Server, channelName string) Channel {
 }
 
 // GetChannelByID returns the Channel object from the given ID as well as its position in its server's channel list
-func (c *Client) GetChannelByID(channelID string) (int, Channel) {
-	var channelPos int
+func (c *Client) GetChannelByID(channelID string) Channel {
 	var res Channel
 	for _, server := range c.Servers {
-		for i, channel := range server.Channels {
+		for _, channel := range server.Channels {
 			if channel.ID == channelID {
-				channelPos = i
 				res = channel
 				break
 			}
 		}
 	}
-	return channelPos, res
+	return res
 }
 
 // GetServer returns the Server object from the given server name
@@ -719,6 +739,56 @@ func (c *Client) EditChannel(channel Channel, params map[string]interface{}) err
 		params,
 	)
 	return err
+}
+
+// GetRegion returns the Region object corresponding to the given server
+func (c *Client) GetRegion(server Server) (Region, error) {
+	var region Region
+
+	response, err := c.get(apiVoice + "/regions")
+	if err != nil {
+		return region, err
+	}
+
+	var regions []Region
+	if err := json.Unmarshal(response, &regions); err != nil {
+		return region, err
+	}
+
+	for _, r := range regions {
+		if r.ID == server.Region {
+			region = r
+			break
+		}
+	}
+
+	return region, nil
+}
+
+func (c *Client) SendAudio(channel Channel, file string) error {
+	if channel.Type != "voice" {
+		return errors.New("SendAudio: require a voice channel")
+	}
+
+	region, err := c.GetRegion(c.Servers[channel.ServerID])
+	if err != nil {
+		return err
+	}
+	remoteAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(
+		"%s:%d", region.Hostname, region.Port,
+	))
+	if err != nil {
+		return err
+	}
+
+	udp, err := net.DialUDP("udp", nil, remoteAddr)
+	if err != nil {
+		return err
+	}
+	defer udp.Close()
+	log.Print("UDP connected to %s", udp.RemoteAddr().String())
+
+	return nil
 }
 
 // Run init the WebSocket connection and starts listening on it

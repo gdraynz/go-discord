@@ -83,10 +83,12 @@ func statsCommand(message discord.Message, args ...string) {
 		fmt.Sprintf("Bot statistics:\n"+
 			"`Memory used` %.2f Mb\n"+
 			"`Users in touch` %s\n"+
-			"`Uptime` %s",
+			"`Uptime` %s\n"+
+			"`Concurrent tasks` %d",
 			float64(stats.Alloc)/1000000,
 			getUserCount(),
 			getUptime(),
+			runtime.NumGoroutine(),
 		),
 	)
 }
@@ -136,12 +138,27 @@ func reminderCommand(message discord.Message, args ...string) {
 	}
 }
 
+func voiceCommand(message discord.Message, args ...string) {
+	if message.Author.Name != "steelou" {
+		client.SendMessage(message.ChannelID, "Nah.")
+		return
+	}
+
+	server := client.Servers[client.GetChannelByID(message.ChannelID).ServerID]
+	voiceChannel := client.GetChannel(server, "General")
+	if err := client.SendAudio(voiceChannel, "dummy"); err != nil {
+		log.Print(err)
+	}
+}
+
 func main() {
 	flag.Parse()
 
 	client = discord.Client{
 		OnReady:         onReady,
 		OnMessageCreate: messageReceived,
+
+		// Debug: true,
 	}
 
 	commands = map[string]Command{
@@ -159,6 +176,11 @@ func main() {
 			Word:    "stats",
 			Help:    "Prints bot statistics",
 			Handler: statsCommand,
+		},
+		"voice": Command{
+			Word:    "voice",
+			Help:    "(dev)",
+			Handler: voiceCommand,
 		},
 	}
 

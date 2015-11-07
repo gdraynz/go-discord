@@ -14,6 +14,10 @@ type Channel struct {
 	PermissionOverwrites []interface{} `json:"permission_overwrites"`
 }
 
+func (channel *Channel) GetServer(client *Client) Server {
+	return client.Servers[channel.ServerID]
+}
+
 // SendMessage sends a message to the channel
 func (channel *Channel) SendMessage(client *Client, content string) (Message, error) {
 	return client.SendMessage(channel.ID, content)

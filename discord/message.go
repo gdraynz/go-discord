@@ -17,6 +17,16 @@ type Message struct {
 	Embeds      interface{} `json:"embeds"`
 }
 
+// GetServer returns the server in which the message has been sent
+func (message *Message) GetServer(client *Client) Server {
+	return client.Servers[message.GetChannel(client).ServerID]
+}
+
+// GetChannel returns the channel in which the message has been sent
+func (message *Message) GetChannel(client *Client) Channel {
+	return client.GetChannelByID(message.ChannelID)
+}
+
 type messageEvent struct {
 	OpCode int     `json:"op"`
 	Type   string  `json:"t"`
