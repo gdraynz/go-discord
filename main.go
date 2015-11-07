@@ -144,7 +144,7 @@ func voiceCommand(message discord.Message, args ...string) {
 		return
 	}
 
-	server := client.Servers[client.GetChannelByID(message.ChannelID).ServerID]
+	server := message.GetServer(&client)
 	voiceChannel := client.GetChannel(server, "General")
 	if err := client.SendAudio(voiceChannel, "dummy"); err != nil {
 		log.Print(err)

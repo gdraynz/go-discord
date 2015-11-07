@@ -25,17 +25,17 @@ func (u *User) GetAvatarURL() string {
 }
 
 // Ban bans the user from the given server
-func (u *User) Ban(client Client, server Server) error {
+func (u *User) Ban(client *Client, server Server) error {
 	return client.Ban(server, *u)
 }
 
 // Unban unbans the user from the given server
-func (u *User) Unban(client Client, server Server) error {
+func (u *User) Unban(client *Client, server Server) error {
 	return client.Unban(server, *u)
 }
 
 // Kick kicks the user from the given server
-func (u *User) Kick(client Client, server Server) error {
+func (u *User) Kick(client *Client, server Server) error {
 	return client.Kick(server, *u)
 }
 
