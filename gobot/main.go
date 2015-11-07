@@ -138,6 +138,14 @@ func reminderCommand(message discord.Message, args ...string) {
 	}
 }
 
+func sourceCommand(message discord.Message, args ...string) {
+	client.SendMessage(message.ChannelID, "https://github.com/gdraynz/go-discord")
+}
+
+func avatarCommand(message discord.Message, args ...string) {
+	client.SendMessage(message.ChannelID, message.Author.GetAvatarURL())
+}
+
 func voiceCommand(message discord.Message, args ...string) {
 	if message.Author.Name != "steelou" {
 		client.SendMessage(message.ChannelID, "Nah.")
@@ -176,6 +184,16 @@ func main() {
 			Word:    "stats",
 			Help:    "Prints bot statistics",
 			Handler: statsCommand,
+		},
+		"source": Command{
+			Word:    "source",
+			Help:    "Shows the bot's source URL",
+			Handler: sourceCommand,
+		},
+		"avatar": Command{
+			Word:    "avatar",
+			Help:    "Shows your avatar URL",
+			Handler: avatarCommand,
 		},
 		// "voice": Command{
 		// 	Word:    "voice",

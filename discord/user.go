@@ -19,7 +19,7 @@ type User struct {
 // GetAvatarURL returns the user's avatar URL
 func (u *User) GetAvatarURL() string {
 	if u.Avatar != "" {
-		return fmt.Sprintf("%s/avatars/%s.jpg", apiUsers, u.Avatar)
+		return fmt.Sprintf("%s/%s/avatars/%s.jpg", apiUsers, u.ID, u.Avatar)
 	}
 	return ""
 }
