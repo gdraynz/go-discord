@@ -82,10 +82,15 @@ func gameStarted(presence discord.Presence) {
 			}
 			log.Printf("Starting to count for %s on %s", user.Name, game.Name)
 			<-usersPlaying[user.ID]
-			duration := time.Now().Sub(start)
-			log.Printf("%s played %s for %s", user.Name, game.Name, getDuration(duration))
 			delete(usersPlaying, user.ID)
-			playedTime[user.ID][game.ID] = duration
+			_, alreadyPlayed := playedTime[user.ID][game.ID]
+			if alreadyPlayed {
+				total := time.Now().Add(playedTime[user.ID][game.ID])
+				playedTime[user.ID][game.ID] = total.Sub(start)
+			} else {
+				playedTime[user.ID][game.ID] = time.Since(start)
+			}
+			log.Printf("Done counting for %s", user.Name)
 		}()
 	}
 }
