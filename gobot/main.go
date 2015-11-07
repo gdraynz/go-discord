@@ -20,6 +20,11 @@ var (
 	client    discord.Client
 	startTime time.Time
 	commands  map[string]Command
+	games     map[int]discord.Game
+
+	usersPlaying map[string]chan bool
+
+	playedTime map[string]map[int]time.Duration
 )
 
 type Command struct {
@@ -30,6 +35,14 @@ type Command struct {
 
 func onReady(ready discord.Ready) {
 	startTime = time.Now()
+	usersPlaying = make(map[string]chan bool)
+	playedTime = make(map[string]map[int]time.Duration)
+
+	var err error
+	games, err = discord.GetGamesFromFile("games.json")
+	if err != nil {
+		log.Print("err: Failed to load games")
+	}
 }
 
 func messageReceived(message discord.Message) {
@@ -50,13 +63,39 @@ func messageReceived(message discord.Message) {
 	}
 }
 
-func getUptime() string {
-	uptime := time.Now().Sub(startTime)
+func gameStarted(presence discord.Presence) {
+	user := presence.GetUser(&client)
+	game, exists := games[presence.GameID]
+	c, ok := usersPlaying[user.ID]
+
+	if ok && !exists {
+		c <- true
+	} else if ok && exists {
+		log.Printf("%s started to play 2 things I DON'T KNOW WHAT TO DO", user.Name)
+	} else if exists {
+		usersPlaying[user.ID] = make(chan bool)
+		go func() {
+			start := time.Now()
+			_, ok := playedTime[user.ID]
+			if !ok {
+				playedTime[user.ID] = make(map[int]time.Duration)
+			}
+			log.Printf("Starting to count for %s on %s", user.Name, game.Name)
+			<-usersPlaying[user.ID]
+			duration := time.Now().Sub(start)
+			log.Printf("%s played %s for %s", user.Name, game.Name, getDuration(duration))
+			delete(usersPlaying, user.ID)
+			playedTime[user.ID][game.ID] = duration
+		}()
+	}
+}
+
+func getDuration(duration time.Duration) string {
 	return fmt.Sprintf(
 		"%0.2d:%02d:%02d",
-		int(uptime.Hours()),
-		int(uptime.Minutes())%60,
-		int(uptime.Seconds())%60,
+		int(duration.Hours()),
+		int(duration.Minutes())%60,
+		int(duration.Seconds())%60,
 	)
 }
 
@@ -87,7 +126,7 @@ func statsCommand(message discord.Message, args ...string) {
 			"`Concurrent tasks` %d",
 			float64(stats.Alloc)/1000000,
 			getUserCount(),
-			getUptime(),
+			getDuration(time.Now().Sub(startTime)),
 			runtime.NumGoroutine(),
 		),
 	)
@@ -159,12 +198,21 @@ func voiceCommand(message discord.Message, args ...string) {
 	}
 }
 
+func playedCommand(message discord.Message, args ...string) {
+	pString := "As far as I'm aware, you played:\n"
+	for id, playtime := range playedTime[message.Author.ID] {
+		pString += fmt.Sprintf("`%s` %s\n", games[id].Name, getDuration(playtime))
+	}
+	client.SendMessage(message.ChannelID, pString)
+}
+
 func main() {
 	flag.Parse()
 
 	client = discord.Client{
-		OnReady:         onReady,
-		OnMessageCreate: messageReceived,
+		OnReady:          onReady,
+		OnMessageCreate:  messageReceived,
+		OnPresenceUpdate: gameStarted,
 
 		// Debug: true,
 	}
@@ -194,6 +242,11 @@ func main() {
 			Word:    "avatar",
 			Help:    "Shows your avatar URL",
 			Handler: avatarCommand,
+		},
+		"played": Command{
+			Word:    "played",
+			Help:    "Shows your play time",
+			Handler: playedCommand,
 		},
 		// "voice": Command{
 		// 	Word:    "voice",

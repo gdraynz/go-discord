@@ -48,6 +48,10 @@ type Presence struct {
 	Roles    []string `json:"roles"`
 }
 
+func (presence *Presence) GetUser(client *Client) User {
+	return client.GetUserByID(presence.User.ID)
+}
+
 type presenceEvent struct {
 	OpCode int      `json:"op"`
 	Type   string   `json:"t"`

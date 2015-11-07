@@ -140,7 +140,9 @@ func (c *Client) handleReady(eventStr []byte) {
 	c.initServers(ready.Data)
 
 	if c.OnReady == nil {
-		log.Print("No handler for READY")
+		if c.Debug {
+			log.Print("No handler for READY")
+		}
 	} else {
 		log.Print("Client ready, calling OnReady handler")
 		c.OnReady(ready.Data)
@@ -149,7 +151,9 @@ func (c *Client) handleReady(eventStr []byte) {
 
 func (c *Client) handleMessageCreate(eventStr []byte) {
 	if c.OnMessageCreate == nil {
-		log.Print("No handler for MESSAGE_CREATE")
+		if c.Debug {
+			log.Print("No handler for MESSAGE_CREATE")
+		}
 		return
 	}
 
@@ -168,7 +172,9 @@ func (c *Client) handleMessageCreate(eventStr []byte) {
 
 func (c *Client) handleMessageAck(eventStr []byte) {
 	if c.OnMessageAck == nil {
-		log.Print("No handler for MESSAGE_ACK")
+		if c.Debug {
+			log.Print("No handler for MESSAGE_ACK")
+		}
 		return
 	}
 
@@ -183,7 +189,9 @@ func (c *Client) handleMessageAck(eventStr []byte) {
 
 func (c *Client) handleMessageUpdate(eventStr []byte) {
 	if c.OnMessageUpdate == nil {
-		log.Print("No handler for MESSAGE_UPDATE")
+		if c.Debug {
+			log.Print("No handler for MESSAGE_UPDATE")
+		}
 		return
 	}
 
@@ -202,7 +210,9 @@ func (c *Client) handleMessageUpdate(eventStr []byte) {
 
 func (c *Client) handleMessageDelete(eventStr []byte) {
 	if c.OnMessageDelete == nil {
-		log.Print("No handler for MESSAGE_DELETE")
+		if c.Debug {
+			log.Print("No handler for MESSAGE_DELETE")
+		}
 		return
 	}
 
@@ -217,7 +227,9 @@ func (c *Client) handleMessageDelete(eventStr []byte) {
 
 func (c *Client) handleTypingStart(eventStr []byte) {
 	if c.OnTypingStart == nil {
-		log.Print("No handler for TYPING_START")
+		if c.Debug {
+			log.Print("No handler for TYPING_START")
+		}
 		return
 	}
 
@@ -232,7 +244,9 @@ func (c *Client) handleTypingStart(eventStr []byte) {
 
 func (c *Client) handlePresenceUpdate(eventStr []byte) {
 	if c.OnPresenceUpdate == nil {
-		log.Print("No handler for PRESENCE_UPDATE")
+		if c.Debug {
+			log.Print("No handler for PRESENCE_UPDATE")
+		}
 		return
 	}
 
@@ -266,7 +280,9 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 		c.PrivateChannels[privateChannel.ID] = privateChannel
 
 		if c.OnPrivateChannelCreate == nil {
-			log.Print("No handler for private CHANNEL_CREATE")
+			if c.Debug {
+				log.Print("No handler for private CHANNEL_CREATE")
+			}
 		} else {
 			c.OnPrivateChannelCreate(privateChannel)
 		}
@@ -285,7 +301,9 @@ func (c *Client) handleChannelCreate(eventStr []byte) {
 		c.Servers[channel.ServerID] = tmp
 
 		if c.OnChannelCreate == nil {
-			log.Print("No handler for CHANNEL_CREATE")
+			if c.Debug {
+				log.Print("No handler for CHANNEL_CREATE")
+			}
 		} else {
 			c.OnChannelCreate(channel)
 		}
@@ -310,7 +328,9 @@ func (c *Client) handleChannelUpdate(eventStr []byte) {
 	c.Servers[channel.ServerID] = tmp
 
 	if c.OnChannelUpdate == nil {
-		log.Print("No handler for CHANNEL_UPDATE")
+		if c.Debug {
+			log.Print("No handler for CHANNEL_UPDATE")
+		}
 	} else {
 		c.OnChannelUpdate(channel)
 	}
@@ -337,7 +357,9 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 		delete(c.PrivateChannels, privateChannel.ID)
 
 		if c.OnPrivateChannelDelete == nil {
-			log.Print("No handler for private CHANNEL_DELETE")
+			if c.Debug {
+				log.Print("No handler for private CHANNEL_DELETE")
+			}
 		} else {
 			c.OnPrivateChannelDelete(privateChannel)
 		}
@@ -358,7 +380,9 @@ func (c *Client) handleChannelDelete(eventStr []byte) {
 		c.Servers[channel.ServerID] = tmp
 
 		if c.OnChannelDelete == nil {
-			log.Print("No handler for CHANNEL_DELETE")
+			if c.Debug {
+				log.Print("No handler for CHANNEL_DELETE")
+			}
 		} else {
 			c.OnChannelDelete(channel)
 		}
@@ -376,7 +400,9 @@ func (c *Client) handleGuildCreate(eventStr []byte) {
 	c.Servers[server.ID] = server
 
 	if c.OnServerCreate == nil {
-		log.Print("No handler for GUILD_CREATE")
+		if c.Debug {
+			log.Print("No handler for GUILD_CREATE")
+		}
 	} else {
 		c.OnServerCreate(server)
 	}
@@ -393,7 +419,9 @@ func (c *Client) handleGuildDelete(eventStr []byte) {
 	delete(c.Servers, server.ID)
 
 	if c.OnServerDelete == nil {
-		log.Print("No handler for GUILD_DELETE")
+		if c.Debug {
+			log.Print("No handler for GUILD_DELETE")
+		}
 	} else {
 		c.OnServerDelete(server)
 	}
@@ -413,7 +441,9 @@ func (c *Client) handleGuildMemberAdd(eventStr []byte) {
 	c.Servers[member.ServerID] = tmp
 
 	if c.OnServerMemberAdd == nil {
-		log.Print("No handler for GUILD_MEMBER_ADD")
+		if c.Debug {
+			log.Print("No handler for GUILD_MEMBER_ADD")
+		}
 	} else {
 		c.OnServerMemberAdd(member)
 	}
@@ -435,7 +465,9 @@ func (c *Client) handleGuildMemberDelete(eventStr []byte) {
 	c.Servers[member.ServerID] = tmp
 
 	if c.OnServerMemberDelete == nil {
-		log.Print("No handler for GUILD_MEMBER_DELETE")
+		if c.Debug {
+			log.Print("No handler for GUILD_MEMBER_DELETE")
+		}
 	} else {
 		c.OnServerMemberDelete(member)
 	}
