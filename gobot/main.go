@@ -22,10 +22,11 @@ var (
 	flagPlayed = flag.String("played", "played.json", "Played time dump json file")
 	flagStdout = flag.Bool("stdout", true, "Logs to stdout")
 
-	client    discord.Client
-	startTime time.Time
-	commands  map[string]Command
-	games     map[int]discord.Game
+	client        discord.Client
+	startTime     time.Time
+	commands      map[string]Command
+	games         map[int]discord.Game
+	totalCommands int
 
 	// Map containing currently playing users
 	usersPlaying map[string]chan bool
@@ -54,6 +55,10 @@ func loadPlayedTime() error {
 }
 
 func savePlayedTime() {
+	for _, c := range usersPlaying {
+		c <- true
+	}
+
 	dump, err := json.Marshal(playedTime)
 	if err != nil {
 		log.Print(err)
@@ -67,6 +72,7 @@ func savePlayedTime() {
 func onReady(ready discord.Ready) {
 	startTime = time.Now()
 	usersPlaying = make(map[string]chan bool)
+	totalCommands = 0
 
 	var err error
 	games, err = discord.GetGamesFromFile("games.json")
@@ -84,6 +90,8 @@ func messageReceived(message discord.Message) {
 	if len(args)-1 < 1 {
 		return
 	}
+
+	totalCommands++
 
 	command, ok := commands[args[1]]
 	if ok {
@@ -166,11 +174,13 @@ func statsCommand(message discord.Message, args ...string) {
 			"`Memory used` %.2f Mb\n"+
 			"`Users in touch` %s\n"+
 			"`Uptime` %s\n"+
-			"`Concurrent tasks` %d",
+			"`Concurrent tasks` %d\n"+
+			"`Commands answered` %d",
 			float64(stats.Alloc)/1000000,
 			getUserCountString(),
 			getDurationString(time.Now().Sub(startTime)),
 			runtime.NumGoroutine(),
+			totalCommands,
 		),
 	)
 }
