@@ -43,7 +43,7 @@ func main() {
 
 ### Current state
 
-Gobot is the experiment which drives the developement of `go-discord`.
+go-bot is the experiment that drives the developement of `go-discord`.
 It currently handles some fun features :
 * `!go played` : Gobot listen to each presence update and increment the playtime of users on its servers
 * `!go reminder` : Set up a timer and simply ping the user after the specified time (break when restarting the bot)
@@ -52,6 +52,7 @@ It currently handles some fun features :
 
 * Adds a database ([boltdb](https://github.com/boltdb/bolt)) to keep track of reminders event after a restart and improve playtimes
 * `!go watch <user> <game>` : pings you when the given user starts playing the specified game
+* `!go twitch` : calls to twitch api
 
 ## Related libraries
 
