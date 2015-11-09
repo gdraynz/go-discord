@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -17,9 +15,12 @@ import (
 	"github.com/gdraynz/go-discord/discord"
 )
 
+const (
+	errorMessage = "Seems like I just broke :|"
+)
+
 var (
 	flagConf   = flag.String("conf", "conf.json", "Configuration file")
-	flagPlayed = flag.String("played", "played.json", "Played time dump json file")
 	flagStdout = flag.Bool("stdout", true, "Logs to stdout")
 
 	client        discord.Client
@@ -28,11 +29,7 @@ var (
 	games         map[int]discord.Game
 	totalCommands int
 
-	// Map containing currently playing users
-	usersPlaying map[string]chan bool
-
-	// Store playtime as nanoseconds
-	playedTime map[string]map[string]int64
+	counter *TimeCounter
 )
 
 type Command struct {
@@ -41,49 +38,8 @@ type Command struct {
 	Handler func(discord.Message, ...string)
 }
 
-func loadPlayedTime() error {
-	playedTime = make(map[string]map[string]int64)
-
-	_, err := os.Stat(*flagPlayed)
-	if err != nil {
-		_, err := os.OpenFile(*flagPlayed, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
-		if err != nil {
-			return err
-		}
-	} else {
-		dump, err := ioutil.ReadFile(*flagPlayed)
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(dump, &playedTime); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func savePlayedTime() {
-	for _, c := range usersPlaying {
-		c <- true
-	}
-
-	// Wait 10ms to save all play times (purely speculative)
-	time.Sleep(10 * time.Millisecond)
-
-	dump, err := json.Marshal(playedTime)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-	if err := ioutil.WriteFile(*flagPlayed, dump, 0600); err != nil {
-		log.Print(err)
-	}
-}
-
 func onReady(ready discord.Ready) {
 	startTime = time.Now()
-	usersPlaying = make(map[string]chan bool)
 	totalCommands = 0
 
 	// Init game list
@@ -121,46 +77,17 @@ func messageReceived(message discord.Message) {
 	}
 }
 
-func countPlaytime(user discord.User, game discord.Game) {
-	log.Printf("Starting to count for %s on %s", user.Name, game.Name)
-
-	usersPlaying[user.ID] = make(chan bool)
-	start := time.Now()
-	_, ok := playedTime[user.ID]
-	if !ok {
-		playedTime[user.ID] = make(map[string]int64)
-	}
-
-	// Wait for game to end
-	<-usersPlaying[user.ID]
-
-	// Delete user from playing list
-	delete(usersPlaying, user.ID)
-
-	// Update player's game time
-	strGameID := strconv.Itoa(game.ID)
-	_, alreadyPlayed := playedTime[user.ID][strGameID]
-	if alreadyPlayed {
-		total := time.Now().Add(time.Duration(playedTime[user.ID][strGameID]))
-		playedTime[user.ID][strGameID] = total.Sub(start).Nanoseconds()
-	} else {
-		playedTime[user.ID][strGameID] = time.Since(start).Nanoseconds()
-	}
-
-	log.Printf("Done counting for %s", user.Name)
-}
-
 func gameStarted(presence discord.Presence) {
 	user := presence.GetUser(&client)
 	game, exists := games[presence.GameID]
-	c, ok := usersPlaying[user.ID]
+	c, ok := counter.InProgress[user.ID]
 
 	if ok && !exists {
 		c <- true
 	} else if ok && exists {
 		log.Printf("Ignoring multiple presence from '%s'", user.Name)
 	} else if exists {
-		countPlaytime(user, game)
+		counter.CountPlaytime(user, game)
 	}
 }
 
@@ -276,14 +203,14 @@ func voiceCommand(message discord.Message, args ...string) {
 
 func playedCommand(message discord.Message, args ...string) {
 	var pString string
-	if len(playedTime[message.Author.ID]) == 0 {
+	if len(counter.Played[message.Author.ID]) == 0 {
 		pString = "Seems you played nothing since I'm up :("
 	} else {
 		pString = "As far as I'm aware, you played:\n"
-		for strGameID, playtime := range playedTime[message.Author.ID] {
+		for strGameID, playtime := range counter.Played[message.Author.ID] {
 			id, err := strconv.Atoi(strGameID)
 			if err != nil {
-				client.SendMessage(message.ChannelID, "Seems like I just broke. :|")
+				client.SendMessage(message.ChannelID, errorMessage)
 				return
 			}
 			pString += fmt.Sprintf(
@@ -296,10 +223,35 @@ func playedCommand(message discord.Message, args ...string) {
 	client.SendMessage(message.ChannelID, pString)
 }
 
+func twitchCommand(message discord.Message, args ...string) {
+	var tString string
+
+	if len(args)-1 < 2 {
+		top, err := getTwitchTopGames()
+		if err != nil {
+			client.SendMessage(message.ChannelID, errorMessage)
+			return
+		}
+		tString = "Here are the top 3 games streamed on Twitch:\n" + top
+	} else {
+		stream, err := getTwitchStream(strings.Join(args[2:], " "))
+		if err != nil {
+			client.SendMessage(message.ChannelID, errorMessage)
+			return
+		}
+		tString = stream
+	}
+
+	client.SendMessage(message.ChannelID, tString)
+}
+
 func main() {
 	flag.Parse()
 
-	if err := loadPlayedTime(); err != nil {
+	// time counter
+	counter = NewCounter()
+
+	if err := counter.LoadPlayTime(); err != nil {
 		log.Print(err)
 	}
 
@@ -313,6 +265,9 @@ func main() {
 		}
 		log.SetOutput(logfile)
 	}
+
+	// Twitch client
+	initTwitch()
 
 	client = discord.Client{
 		OnReady:          onReady,
@@ -353,6 +308,11 @@ func main() {
 			Help:    "Shows your play time",
 			Handler: playedCommand,
 		},
+		"twitch": Command{
+			Word:    "twitch [<game>]",
+			Help:    "Show the top 3 streamed games on twitch, or link to the most watched stream for the given game",
+			Handler: twitchCommand,
+		},
 		// "watch": Command{
 		// 	Word:    "watch <user> [<game>]",
 		// 	Help:    "Ping you when <user> starts to play <game>",
@@ -370,7 +330,7 @@ func main() {
 	go func(c chan os.Signal) {
 		sig := <-c
 		log.Printf("Caught signal %s: shutting down", sig)
-		savePlayedTime()
+		counter.SavePlayTime()
 		if logfile != nil {
 			logfile.Close()
 		}

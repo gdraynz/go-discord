@@ -518,8 +518,10 @@ func (c *Client) handleEvent(eventStr []byte) {
 	case "GUILD_MEMBER_DELETE":
 		c.handleGuildMemberDelete(eventStr)
 	default:
-		log.Printf("Ignoring %s", eventType)
-		log.Printf("event dump: %s", string(eventStr[:]))
+		if c.Debug {
+			log.Printf("Ignoring %s", eventType)
+			log.Printf("event dump: %s", string(eventStr[:]))
+		}
 	}
 
 }
