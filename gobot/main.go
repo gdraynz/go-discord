@@ -44,13 +44,22 @@ type Command struct {
 func loadPlayedTime() error {
 	playedTime = make(map[string]map[string]int64)
 
-	dump, err := ioutil.ReadFile(*flagPlayed)
+	_, err := os.Stat(*flagPlayed)
 	if err != nil {
-		return err
+		_, err := os.OpenFile(*flagPlayed, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return err
+		}
+	} else {
+		dump, err := ioutil.ReadFile(*flagPlayed)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(dump, &playedTime); err != nil {
+			return err
+		}
 	}
-	if err := json.Unmarshal(dump, &playedTime); err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -58,6 +67,9 @@ func savePlayedTime() {
 	for _, c := range usersPlaying {
 		c <- true
 	}
+
+	// Wait 10ms to save all play times (purely speculative)
+	time.Sleep(10 * time.Millisecond)
 
 	dump, err := json.Marshal(playedTime)
 	if err != nil {
@@ -74,10 +86,18 @@ func onReady(ready discord.Ready) {
 	usersPlaying = make(map[string]chan bool)
 	totalCommands = 0
 
+	// Init game list
 	var err error
 	games, err = discord.GetGamesFromFile("games.json")
 	if err != nil {
 		log.Print("err: Failed to load games")
+	}
+
+	// Start playtime count for everyone already playing
+	for _, server := range ready.Servers {
+		for _, presence := range server.Presences {
+			go gameStarted(presence)
+		}
 	}
 }
 
@@ -101,6 +121,35 @@ func messageReceived(message discord.Message) {
 	}
 }
 
+func countPlaytime(user discord.User, game discord.Game) {
+	log.Printf("Starting to count for %s on %s", user.Name, game.Name)
+
+	usersPlaying[user.ID] = make(chan bool)
+	start := time.Now()
+	_, ok := playedTime[user.ID]
+	if !ok {
+		playedTime[user.ID] = make(map[string]int64)
+	}
+
+	// Wait for game to end
+	<-usersPlaying[user.ID]
+
+	// Delete user from playing list
+	delete(usersPlaying, user.ID)
+
+	// Update player's game time
+	strGameID := strconv.Itoa(game.ID)
+	_, alreadyPlayed := playedTime[user.ID][strGameID]
+	if alreadyPlayed {
+		total := time.Now().Add(time.Duration(playedTime[user.ID][strGameID]))
+		playedTime[user.ID][strGameID] = total.Sub(start).Nanoseconds()
+	} else {
+		playedTime[user.ID][strGameID] = time.Since(start).Nanoseconds()
+	}
+
+	log.Printf("Done counting for %s", user.Name)
+}
+
 func gameStarted(presence discord.Presence) {
 	user := presence.GetUser(&client)
 	game, exists := games[presence.GameID]
@@ -109,35 +158,9 @@ func gameStarted(presence discord.Presence) {
 	if ok && !exists {
 		c <- true
 	} else if ok && exists {
-		log.Printf("Got multiple presence for '%s', he may be in more than one server", user.Name)
+		log.Printf("Ignoring multiple presence from '%s'", user.Name)
 	} else if exists {
-		usersPlaying[user.ID] = make(chan bool)
-		go func() {
-			start := time.Now()
-			_, ok := playedTime[user.ID]
-			if !ok {
-				playedTime[user.ID] = make(map[string]int64)
-			}
-			log.Printf("Starting to count for %s on %s", user.Name, game.Name)
-
-			// Wait for game to end
-			<-usersPlaying[user.ID]
-
-			// Delete user from playing list
-			delete(usersPlaying, user.ID)
-
-			// Update player's game time
-			strGameID := strconv.Itoa(game.ID)
-			_, alreadyPlayed := playedTime[user.ID][strGameID]
-			if alreadyPlayed {
-				total := time.Now().Add(time.Duration(playedTime[user.ID][strGameID]))
-				playedTime[user.ID][strGameID] = total.Sub(start).Nanoseconds()
-			} else {
-				playedTime[user.ID][strGameID] = time.Since(start).Nanoseconds()
-			}
-
-			log.Printf("Done counting for %s", user.Name)
-		}()
+		countPlaytime(user, game)
 	}
 }
 
@@ -252,18 +275,23 @@ func voiceCommand(message discord.Message, args ...string) {
 }
 
 func playedCommand(message discord.Message, args ...string) {
-	pString := "As far as I'm aware, you played:\n"
-	for strGameID, playtime := range playedTime[message.Author.ID] {
-		id, err := strconv.Atoi(strGameID)
-		if err != nil {
-			client.SendMessage(message.ChannelID, "Seems like I just broke. :|")
-			return
+	var pString string
+	if len(playedTime[message.Author.ID]) == 0 {
+		pString = "Seems you played nothing since I'm up :("
+	} else {
+		pString = "As far as I'm aware, you played:\n"
+		for strGameID, playtime := range playedTime[message.Author.ID] {
+			id, err := strconv.Atoi(strGameID)
+			if err != nil {
+				client.SendMessage(message.ChannelID, "Seems like I just broke. :|")
+				return
+			}
+			pString += fmt.Sprintf(
+				"`%s` %s\n",
+				games[id].Name,
+				getDurationString(time.Duration(playtime)),
+			)
 		}
-		pString += fmt.Sprintf(
-			"`%s` %s\n",
-			games[id].Name,
-			getDurationString(time.Duration(playtime)),
-		)
 	}
 	client.SendMessage(message.ChannelID, pString)
 }
@@ -325,10 +353,15 @@ func main() {
 			Help:    "Shows your play time",
 			Handler: playedCommand,
 		},
-		// "voice": Command{
-		// 	Word:    "voice",
-		// 	Help:    "(dev)",
-		// 	Handler: voiceCommand,
+		// "watch": Command{
+		// 	Word:    "watch <user> [<game>]",
+		// 	Help:    "Ping you when <user> starts to play <game>",
+		// 	Handler: watchCommand,
+		// },
+		// "unwatch": Command{
+		// 	Word:    "unwatch <user> [<game>]",
+		// 	Help:    "Stop notifying from the watch command",
+		// 	Handler: unwatchCommand,
 		// },
 	}
 
