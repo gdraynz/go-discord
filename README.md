@@ -8,9 +8,11 @@ API calls largely inspired by the Discord python client [discord.py](https://git
 
 Some methods may be pretty chaotic but I'm no Go expert and hope it will do for now.
 
-An usage example can be found in the `main.go` file.
+## Basic usage
 
 ```go
+package main
+
 import (
     "log"
 
@@ -37,7 +39,23 @@ func main() {
 }
 ```
 
-I'm not putting a lot of time on it, here are many other implementations in different languages :
+## Go-bot
+
+### Current state
+
+Gobot is the experiment which drives the developement of `go-discord`.
+It currently handles some fun features :
+* `!go played` : Gobot listen to each presence update and increment the playtime of users on its servers
+* `!go reminder` : Set up a timer and simply ping the user after the specified time (break when restarting the bot)
+
+### Todo
+
+* Adds a database ([boltdb](https://github.com/boltdb/bolt)) to keep track of reminders event after a restart and improve playtimes
+* `!go watch <user> <game>` : pings you when the given user starts playing the specified game
+
+## Related libraries
+
+I'm not putting a lot of time on `go-discord`, here are many other implementations in different languages :
 
 - [discord.py](https://github.com/Rapptz/discord.py)
 - [discord.js](https://github.com/discord-js/discord.js)
