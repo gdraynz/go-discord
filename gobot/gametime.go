@@ -104,9 +104,9 @@ func NewCounter() (*TimeCounter, error) {
 	}, nil
 }
 
-func (t *TimeCounter) GetUserGametime(user discord.User) (map[string]int64, error) {
+func (counter *TimeCounter) GetUserGametime(user discord.User) (map[string]int64, error) {
 	gameMap := make(map[string]int64)
-	err := t.GametimeDB.View(func(t *bolt.Tx) error {
+	err := counter.GametimeDB.View(func(t *bolt.Tx) error {
 		b := t.Bucket([]byte(user.ID))
 		if b == nil {
 			return errors.New("user never played")
@@ -173,13 +173,13 @@ func (counter *TimeCounter) CountGametime(user discord.User, game discord.Game) 
 
 	// Update game time
 	err := counter.GametimeDB.Update(func(t *bolt.Tx) error {
-		return pUser.SaveGametime(t)
+		err := pUser.SaveGametime(t)
+		log.Printf("%s saved", user.Name)
+		return err
 	})
 
 	if err != nil {
 		log.Printf("Error while updating game time : %s", err.Error())
-	} else {
-		log.Printf("Done counting for %s", user.Name)
 	}
 }
 
