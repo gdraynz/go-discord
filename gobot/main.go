@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	errorMessage = "Seems like I just broke :|"
+	errorMessage = "Woops. I failed :("
 )
 
 var (
@@ -84,7 +84,7 @@ func gameStarted(presence discord.Presence) {
 	if ok && !exists {
 		c <- true
 	} else if ok && exists {
-		log.Printf("Ignoring multiple presence from '%s'", user.Name)
+		return
 	} else if exists {
 		counter.CountPlaytime(user, game)
 	}
@@ -205,7 +205,7 @@ func voiceCommand(message discord.Message, args ...string) {
 func playedCommand(message discord.Message, args ...string) {
 	var pString string
 	if len(counter.Played[message.Author.ID]) == 0 {
-		pString = "Seems you played nothing since I'm up :("
+		pString = "It seems like you played nothing since I'm up :("
 	} else {
 		pString = "As far as I'm aware, you played:\n"
 		for id, playtime := range counter.Played[message.Author.ID] {
