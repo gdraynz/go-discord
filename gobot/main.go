@@ -48,7 +48,7 @@ func onReady(ready discord.Ready) {
 		log.Print("err: Failed to load games")
 	}
 
-	// Start playtime count for everyone already playing
+	// Start gametime count for everyone already playing
 	for _, server := range ready.Servers {
 		for _, presence := range server.Presences {
 			go gameStarted(presence)
@@ -212,11 +212,11 @@ func playedCommand(message discord.Message, args ...string) {
 		pString = "It seems like you played nothing since I'm up :("
 	} else {
 		pString = "As far as I'm aware, you played:\n"
-		for id, playtime := range userMap {
+		for id, gametime := range userMap {
 			pString += fmt.Sprintf(
 				"`%s` %s\n",
 				games[id].Name,
-				getDurationString(time.Duration(playtime)),
+				getDurationString(time.Duration(gametime)),
 			)
 		}
 	}
@@ -302,7 +302,7 @@ func main() {
 		},
 		"played": Command{
 			Word:    "played",
-			Help:    "Shows your play time",
+			Help:    "Shows your game time",
 			Handler: playedCommand,
 		},
 		"twitch": Command{
