@@ -79,10 +79,10 @@ func messageReceived(message discord.Message) {
 func gameStarted(presence discord.Presence) {
 	user := presence.GetUser(&client)
 	game, exists := games[string(presence.GameID)]
-	c, ok := counter.InProgress[user.ID]
+	pUser, ok := counter.InProgress[user.ID]
 
 	if ok && !exists {
-		c <- true
+		pUser.C <- true
 	} else if ok && exists {
 		// User may be in more than one server with this instance of gobot
 		return
