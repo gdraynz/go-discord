@@ -13,22 +13,30 @@ import (
 
 var (
 	flagDB = flag.String("db", "gametime.db", "DB file for game time")
-
-	GametimeDB *bolt.DB
 )
 
 type TimeCounter struct {
 	InProgress map[string]chan bool
+	GametimeDB *bolt.DB
 }
 
-func NewCounter() (_ *TimeCounter, err error) {
-	GametimeDB, err = bolt.Open(*flagDB, 0600, nil)
-	return &TimeCounter{InProgress: make(map[string]chan bool)}, err
+func NewCounter() (*TimeCounter, error) {
+	var t *TimeCounter
+
+	db, err := bolt.Open(*flagDB, 0600, nil)
+	if err != nil {
+		return t, err
+	}
+
+	return &TimeCounter{
+		InProgress: make(map[string]chan bool),
+		GametimeDB: db,
+	}, nil
 }
 
 func (t *TimeCounter) GetUserGametime(user discord.User) (map[string]int64, error) {
 	gameMap := make(map[string]int64)
-	err := GametimeDB.View(func(t *bolt.Tx) error {
+	err := t.GametimeDB.View(func(t *bolt.Tx) error {
 		b := t.Bucket([]byte(user.ID))
 		if b == nil {
 			return errors.New("user never played")
@@ -58,7 +66,7 @@ func (t *TimeCounter) CountGametime(user discord.User, game discord.Game) {
 	delete(t.InProgress, user.ID)
 
 	// Update game time
-	err := GametimeDB.Update(func(t *bolt.Tx) error {
+	err := t.GametimeDB.Update(func(t *bolt.Tx) error {
 		b, err := t.CreateBucketIfNotExists([]byte(user.ID))
 		if err != nil {
 			return err
@@ -98,5 +106,5 @@ func (t *TimeCounter) CountGametime(user discord.User, game discord.Game) {
 }
 
 func (t *TimeCounter) Close() {
-	GametimeDB.Close()
+	t.GametimeDB.Close()
 }
