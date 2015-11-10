@@ -206,18 +206,29 @@ func voiceCommand(message discord.Message, args ...string) {
 func playedCommand(message discord.Message, args ...string) {
 	var pString string
 
-	userMap, err := counter.GetUserGametime(message.Author)
+	if len(args)-1 < 2 {
+		userMap, err := counter.GetUserGametime(message.Author)
 
-	if err != nil {
-		pString = "It seems like you played nothing since I'm up :("
+		if err != nil {
+			pString = "I don't remember you playing anything I know :("
+		} else {
+			pString = "As far as I'm aware, you played:\n"
+			for id, gametime := range userMap {
+				pString += fmt.Sprintf(
+					"`%s` %s\n",
+					games[id].Name,
+					getDurationString(time.Duration(gametime)),
+				)
+			}
+		}
 	} else {
-		pString = "As far as I'm aware, you played:\n"
-		for id, gametime := range userMap {
-			pString += fmt.Sprintf(
-				"`%s` %s\n",
-				games[id].Name,
-				getDurationString(time.Duration(gametime)),
-			)
+		top, err := counter.GetTopGames()
+		if err != nil {
+			client.SendMessage(message.ChannelID, errorMessage)
+		}
+		pString = "Top 3 played games:\n"
+		for _, t := range top {
+			pString += fmt.Sprintf("`%s`\n", games[t].Name)
 		}
 	}
 
@@ -301,7 +312,7 @@ func main() {
 			Handler: avatarCommand,
 		},
 		"played": Command{
-			Word:    "played",
+			Word:    "played [all]",
 			Help:    "Shows your game time",
 			Handler: playedCommand,
 		},

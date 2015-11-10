@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -14,6 +15,36 @@ import (
 var (
 	flagDB = flag.String("db", "gametime.db", "DB file for game time")
 )
+
+type sortedMap struct {
+	m map[string]int64
+	s []string
+}
+
+func (sm *sortedMap) Len() int {
+	return len(sm.m)
+}
+
+func (sm *sortedMap) Less(i, j int) bool {
+	return sm.m[sm.s[i]] > sm.m[sm.s[j]]
+}
+
+func (sm *sortedMap) Swap(i, j int) {
+	sm.s[i], sm.s[j] = sm.s[j], sm.s[i]
+}
+
+func sortedKeys(m map[string]int64) []string {
+	sm := new(sortedMap)
+	sm.m = m
+	sm.s = make([]string, len(m))
+	i := 0
+	for key, _ := range m {
+		sm.s[i] = key
+		i++
+	}
+	sort.Sort(sm)
+	return sm.s
+}
 
 type PlayingUser struct {
 	UserID    string
@@ -88,6 +119,39 @@ func (t *TimeCounter) GetUserGametime(user discord.User) (map[string]int64, erro
 		return nil
 	})
 	return gameMap, err
+}
+
+func (counter *TimeCounter) GetTopGames() ([]string, error) {
+	gameMap := make(map[string]int64)
+
+	err := counter.GametimeDB.View(func(t *bolt.Tx) error {
+		t.ForEach(func(bName []byte, b *bolt.Bucket) error {
+			b.ForEach(func(gameID []byte, gameTime []byte) error {
+				strGameID := string(gameID[:])
+				addTime, _ := binary.Varint(gameTime)
+
+				time, ok := gameMap[strGameID]
+				if ok {
+					time += addTime
+				} else {
+					gameMap[strGameID] = addTime
+				}
+
+				return nil
+			})
+			return nil
+		})
+		return nil
+	})
+
+	sorted := sortedKeys(gameMap)
+	if len(sorted)-1 < 3 {
+		return nil, errors.New("failed to sort")
+	}
+
+	top := sorted[:3]
+
+	return top, err
 }
 
 func (counter *TimeCounter) CountGametime(user discord.User, game discord.Game) {
