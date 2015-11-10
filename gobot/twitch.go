@@ -42,14 +42,14 @@ func getTwitchStream(gameName string) (string, error) {
 		return stream, err
 	}
 
-	if len(games.Streams) < 0 {
+	if len(games.Streams)-1 < 0 {
 		return stream, errors.New("No stream found")
 	}
 
 	game := games.Streams[0]
 
 	stream = fmt.Sprintf(
-		"**%s** on %s with %d viewers : %s\n",
+		"**%s** on %s with %d viewers : <%s>\n",
 		game.Channel.Name,
 		game.Game,
 		game.Viewers,

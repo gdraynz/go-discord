@@ -121,15 +121,17 @@ func statsCommand(message discord.Message, args ...string) {
 	client.SendMessage(
 		message.ChannelID,
 		fmt.Sprintf("Bot statistics:\n"+
-			"`Memory used` %.2f Mb\n"+
-			"`Users in touch` %s\n"+
 			"`Uptime` %s\n"+
+			"`Memory used` %.2f Mb\n"+
 			"`Concurrent tasks` %d\n"+
-			"`Commands answered` %d",
-			float64(stats.Alloc)/1000000,
-			getUserCountString(),
+			"`Users in touch` %s\n"+
+			"`Users playing` %d\n"+
+			"`Commands answered` %d\n",
 			getDurationString(time.Now().Sub(startTime)),
+			float64(stats.Alloc)/1000000,
 			runtime.NumGoroutine(),
+			getUserCountString(),
+			len(counter.InProgress),
 			totalCommands,
 		),
 	)
