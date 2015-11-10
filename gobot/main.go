@@ -84,9 +84,10 @@ func gameStarted(presence discord.Presence) {
 	if ok && !exists {
 		c <- true
 	} else if ok && exists {
+		// User may be in more than one server with this instance of gobot
 		return
 	} else if exists {
-		counter.CountPlaytime(user, game)
+		counter.CountGametime(user, game)
 	}
 }
 
@@ -204,11 +205,14 @@ func voiceCommand(message discord.Message, args ...string) {
 
 func playedCommand(message discord.Message, args ...string) {
 	var pString string
-	if len(counter.Played[message.Author.ID]) == 0 {
+
+	userMap, err := counter.GetUserGametime(message.Author)
+
+	if err != nil {
 		pString = "It seems like you played nothing since I'm up :("
 	} else {
 		pString = "As far as I'm aware, you played:\n"
-		for id, playtime := range counter.Played[message.Author.ID] {
+		for id, playtime := range userMap {
 			pString += fmt.Sprintf(
 				"`%s` %s\n",
 				games[id].Name,
@@ -216,6 +220,7 @@ func playedCommand(message discord.Message, args ...string) {
 			)
 		}
 	}
+
 	client.SendMessage(message.ChannelID, pString)
 }
 
@@ -245,11 +250,7 @@ func main() {
 	flag.Parse()
 
 	// time counter
-	counter = NewCounter()
-
-	if err := counter.LoadPlayTime(); err != nil {
-		log.Print(err)
-	}
+	counter, _ = NewCounter()
 
 	// Logging
 	var logfile *os.File
@@ -326,7 +327,7 @@ func main() {
 	go func(c chan os.Signal) {
 		sig := <-c
 		log.Printf("Caught signal %s: shutting down", sig)
-		counter.SavePlayTime()
+		counter.Close()
 		if logfile != nil {
 			logfile.Close()
 		}
