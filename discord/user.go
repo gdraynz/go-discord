@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -41,11 +42,11 @@ func (u *User) Kick(client *Client, server Server) error {
 
 // Presence defines the status of a User
 type Presence struct {
-	Status   string   `json:"status"`
-	GameID   int      `json:"game_id"`
-	User     User     `json:"user"`
-	ServerID string   `json:"guild_id"`
-	Roles    []string `json:"roles"`
+	Status   string      `json:"status"`
+	GameID   json.Number `json:"game_id,Number"`
+	User     User        `json:"user"`
+	ServerID string      `json:"guild_id"`
+	Roles    []string    `json:"roles"`
 }
 
 func (presence *Presence) GetUser(client *Client) User {

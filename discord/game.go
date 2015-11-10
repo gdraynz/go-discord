@@ -7,11 +7,11 @@ import (
 
 type Game struct {
 	Name        string              `json:"name"`
-	ID          int                 `json:"id"`
+	ID          json.Number         `json:"id,Number"`
 	Executables map[string][]string `json:"executables"`
 }
 
-func GetGamesFromFile(filename string) (map[int]Game, error) {
+func GetGamesFromFile(filename string) (map[string]Game, error) {
 	fileDump, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -22,9 +22,9 @@ func GetGamesFromFile(filename string) (map[int]Game, error) {
 		return nil, err
 	}
 
-	gameMap := make(map[int]Game)
+	gameMap := make(map[string]Game)
 	for _, game := range games {
-		gameMap[game.ID] = game
+		gameMap[string(game.ID)] = game
 	}
 
 	return gameMap, nil

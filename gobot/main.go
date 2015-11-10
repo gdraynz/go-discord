@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -26,7 +25,7 @@ var (
 	client        discord.Client
 	startTime     time.Time
 	commands      map[string]Command
-	games         map[int]discord.Game
+	games         map[string]discord.Game
 	totalCommands int
 
 	counter *TimeCounter
@@ -79,7 +78,7 @@ func messageReceived(message discord.Message) {
 
 func gameStarted(presence discord.Presence) {
 	user := presence.GetUser(&client)
-	game, exists := games[presence.GameID]
+	game, exists := games[string(presence.GameID)]
 	c, ok := counter.InProgress[user.ID]
 
 	if ok && !exists {
@@ -209,12 +208,7 @@ func playedCommand(message discord.Message, args ...string) {
 		pString = "Seems you played nothing since I'm up :("
 	} else {
 		pString = "As far as I'm aware, you played:\n"
-		for strGameID, playtime := range counter.Played[message.Author.ID] {
-			id, err := strconv.Atoi(strGameID)
-			if err != nil {
-				client.SendMessage(message.ChannelID, errorMessage)
-				return
-			}
+		for id, playtime := range counter.Played[message.Author.ID] {
 			pString += fmt.Sprintf(
 				"`%s` %s\n",
 				games[id].Name,

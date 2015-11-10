@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/gdraynz/go-discord/discord"
@@ -45,13 +44,13 @@ func (t *TimeCounter) CountPlaytime(user discord.User, game discord.Game) {
 	delete(t.InProgress, user.ID)
 
 	// Update player's game time
-	strGameID := strconv.Itoa(game.ID)
-	_, alreadyPlayed := t.Played[user.ID][strGameID]
+	gameid := string(game.ID)
+	_, alreadyPlayed := t.Played[user.ID][gameid]
 	if alreadyPlayed {
-		total := time.Now().Add(time.Duration(t.Played[user.ID][strGameID]))
-		t.Played[user.ID][strGameID] = total.Sub(start).Nanoseconds()
+		total := time.Now().Add(time.Duration(t.Played[user.ID][gameid]))
+		t.Played[user.ID][gameid] = total.Sub(start).Nanoseconds()
 	} else {
-		t.Played[user.ID][strGameID] = time.Since(start).Nanoseconds()
+		t.Played[user.ID][gameid] = time.Since(start).Nanoseconds()
 	}
 
 	log.Printf("Done counting for %s", user.Name)
