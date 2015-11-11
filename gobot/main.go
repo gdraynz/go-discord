@@ -48,13 +48,13 @@ func onReady(ready discord.Ready) {
 		log.Print("err: Failed to load games")
 	}
 
-	time.Sleep(10 * time.Millisecond)
+	// Start listening for gametimes from presences
+	go counter.Listen()
 
 	// Start gametime count for everyone already playing
-	// TODO: This is pretty broken with too many presences
 	for _, server := range ready.Servers {
 		for _, presence := range server.Presences {
-			go gameStarted(presence)
+			gameStarted(presence)
 		}
 	}
 }
@@ -81,16 +81,16 @@ func messageReceived(message discord.Message) {
 
 func gameStarted(presence discord.Presence) {
 	user := presence.GetUser(&client)
-	game, exists := games[string(presence.GameID)]
-	pUser, ok := counter.InProgress[user.ID]
+	game, gameExists := games[string(presence.GameID)]
+	pUser, isPlaying := counter.InProgress[user.ID]
 
-	if ok && !exists {
-		pUser.C <- true
-	} else if ok && exists {
+	if isPlaying && !gameExists {
+		counter.GametimeChan <- pUser
+	} else if isPlaying && gameExists {
 		// User may be in more than one server with this instance of gobot
 		return
-	} else if exists {
-		counter.CountGametime(user, game)
+	} else if !isPlaying && gameExists {
+		counter.StartGametime(user, game)
 	}
 }
 

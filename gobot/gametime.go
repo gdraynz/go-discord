@@ -49,7 +49,6 @@ func sortedKeys(m map[string]int64) []string {
 type PlayingUser struct {
 	UserID    string
 	StartTime time.Time
-	C         chan bool
 	GameID    string
 }
 
@@ -88,8 +87,9 @@ func (p *PlayingUser) SaveGametime(t *bolt.Tx) error {
 }
 
 type TimeCounter struct {
-	InProgress map[string]PlayingUser
-	GametimeDB *bolt.DB
+	InProgress   map[string]PlayingUser
+	GametimeDB   *bolt.DB
+	GametimeChan chan PlayingUser
 }
 
 func NewCounter() (*TimeCounter, error) {
@@ -101,9 +101,46 @@ func NewCounter() (*TimeCounter, error) {
 	}
 
 	return &TimeCounter{
-		InProgress: make(map[string]PlayingUser),
-		GametimeDB: db,
+		InProgress:   make(map[string]PlayingUser),
+		GametimeDB:   db,
+		GametimeChan: make(chan PlayingUser),
 	}, nil
+}
+
+func (counter *TimeCounter) Listen() {
+	for {
+		pUser := <-counter.GametimeChan
+		go counter.EndGametime(pUser)
+	}
+}
+
+func (counter *TimeCounter) StartGametime(user discord.User, game discord.Game) {
+	log.Printf("Starting to count for %s on %s", user.Name, game.Name)
+
+	pUser := PlayingUser{
+		UserID:    user.ID,
+		GameID:    string(game.ID),
+		StartTime: time.Now(),
+	}
+
+	counter.InProgress[user.ID] = pUser
+}
+
+func (counter *TimeCounter) EndGametime(pUser PlayingUser) {
+	// Delete user from playing list
+	delete(counter.InProgress, pUser.UserID)
+
+	// Update game time
+	err := counter.GametimeDB.Update(func(t *bolt.Tx) error {
+		err := pUser.SaveGametime(t)
+		return err
+	})
+
+	if err != nil {
+		log.Printf("Error while updating game time : %s", err.Error())
+	}
+
+	log.Printf("Saved %s", pUser.UserID)
 }
 
 func (counter *TimeCounter) GetUserGametime(user discord.User) (map[string]int64, error) {
@@ -167,35 +204,6 @@ func (counter *TimeCounter) GetTopGames() ([]TopGame, error) {
 	return top, err
 }
 
-func (counter *TimeCounter) CountGametime(user discord.User, game discord.Game) {
-	log.Printf("Starting to count for %s on %s", user.Name, game.Name)
-
-	pUser := PlayingUser{
-		UserID:    user.ID,
-		GameID:    string(game.ID),
-		C:         make(chan bool),
-		StartTime: time.Now(),
-	}
-	counter.InProgress[user.ID] = pUser
-
-	// Wait for game to end
-	<-counter.InProgress[user.ID].C
-
-	// Delete user from playing list
-	delete(counter.InProgress, user.ID)
-
-	// Update game time
-	err := counter.GametimeDB.Update(func(t *bolt.Tx) error {
-		err := pUser.SaveGametime(t)
-		log.Printf("%s saved", user.Name)
-		return err
-	})
-
-	if err != nil {
-		log.Printf("Error while updating game time : %s", err.Error())
-	}
-}
-
 func (counter *TimeCounter) Snapshot() error {
 	return counter.GametimeDB.Update(func(t *bolt.Tx) (err error) {
 		for _, pUser := range counter.InProgress {
@@ -205,6 +213,7 @@ func (counter *TimeCounter) Snapshot() error {
 				continue
 			}
 		}
+		log.Print("Snapshot done")
 		return nil
 	})
 }
