@@ -48,7 +48,10 @@ func onReady(ready discord.Ready) {
 		log.Print("err: Failed to load games")
 	}
 
+	time.Sleep(10 * time.Millisecond)
+
 	// Start gametime count for everyone already playing
+	// TODO: This is pretty broken with too many presences
 	for _, server := range ready.Servers {
 		for _, presence := range server.Presences {
 			go gameStarted(presence)
@@ -224,11 +227,17 @@ func playedCommand(message discord.Message, args ...string) {
 	} else {
 		top, err := counter.GetTopGames()
 		if err != nil {
+			log.Print(err)
 			client.SendMessage(message.ChannelID, errorMessage)
+			return
 		}
 		pString = "Top 3 played games:\n"
 		for _, t := range top {
-			pString += fmt.Sprintf("`%s`\n", games[t].Name)
+			pString += fmt.Sprintf(
+				"`%s` %s\n",
+				games[t.ID].Name,
+				getDurationString(time.Duration(t.TimePlayed)),
+			)
 		}
 	}
 

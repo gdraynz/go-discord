@@ -82,6 +82,8 @@ func (p *PlayingUser) SaveGametime(t *bolt.Tx) error {
 			return err
 		}
 	}
+	// Update start time
+	p.StartTime = time.Now()
 	return nil
 }
 
@@ -121,7 +123,12 @@ func (counter *TimeCounter) GetUserGametime(user discord.User) (map[string]int64
 	return gameMap, err
 }
 
-func (counter *TimeCounter) GetTopGames() ([]string, error) {
+type TopGame struct {
+	ID         string
+	TimePlayed int64
+}
+
+func (counter *TimeCounter) GetTopGames() ([]TopGame, error) {
 	gameMap := make(map[string]int64)
 
 	err := counter.GametimeDB.View(func(t *bolt.Tx) error {
@@ -149,7 +156,13 @@ func (counter *TimeCounter) GetTopGames() ([]string, error) {
 		return nil, errors.New("failed to sort")
 	}
 
-	top := sorted[:3]
+	var top []TopGame
+	for i := 0; i < 3; i++ {
+		top = append(top, TopGame{
+			ID:         sorted[i],
+			TimePlayed: gameMap[sorted[i]],
+		})
+	}
 
 	return top, err
 }

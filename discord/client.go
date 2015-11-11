@@ -742,6 +742,29 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 	return message, err
 }
 
+// CreatePrivateChannel creates a private channel with the given user
+func (c *Client) CreatePrivateChannel(user User) (PrivateChannel, error) {
+	var pChannel PrivateChannel
+
+	response, err := c.request(
+		"POST",
+		fmt.Sprintf("%s/channels", apiUsers, user.ID),
+		nil,
+	)
+
+	if err != nil {
+		return pChannel, err
+	}
+
+	if err := json.Unmarshal(response, &pChannel); err != nil {
+		return pChannel, err
+	}
+
+	c.PrivateChannels[pChannel.ID] = pChannel
+
+	return pChannel, err
+}
+
 // AckMessage acknowledges the message on the given channel
 func (c *Client) AckMessage(channel Channel, message Message) error {
 	_, err := c.request(

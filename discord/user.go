@@ -40,6 +40,11 @@ func (u *User) Kick(client *Client, server Server) error {
 	return client.Kick(server, *u)
 }
 
+// CreatePrivateChannel creates a private channel with this user
+func (u *User) CreatePrivateChannel(client *Client) (PrivateChannel, error) {
+	return client.CreatePrivateChannel(*u)
+}
+
 // Presence defines the status of a User
 type Presence struct {
 	Status   string      `json:"status"`
@@ -49,6 +54,7 @@ type Presence struct {
 	Roles    []string    `json:"roles"`
 }
 
+// GetUser returns the User object of this presence event
 func (presence *Presence) GetUser(client *Client) User {
 	return client.GetUserByID(presence.User.ID)
 }
