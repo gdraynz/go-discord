@@ -53,6 +53,7 @@ It currently handles some fun features :
 
 * Handle reminders using the ([boltdb](https://github.com/boltdb/bolt)) database
 * `!go watch <user> <game>` : pings you when the given user starts playing the specified game
+* `!go lfg <game>` : a Looking for Group thing
 
 ## Related libraries
 
