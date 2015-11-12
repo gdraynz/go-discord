@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	flagDB = flag.String("db", "gametime.db", "DB file for game time")
+	gametimeFlagDB = flag.String("gametimedb", "gametime.db", "DB file for game time")
 )
 
 type PlayingUser struct {
@@ -55,35 +55,35 @@ func (p *PlayingUser) SaveGametime(t *bolt.Tx) error {
 	return nil
 }
 
-type TimeCounter struct {
+type GametimeCounter struct {
 	InProgress   map[string]PlayingUser
-	GametimeDB   *bolt.DB
+	DB           *bolt.DB
 	GametimeChan chan PlayingUser
 }
 
-func NewCounter() (*TimeCounter, error) {
-	var t *TimeCounter
+func NewCounter() (*GametimeCounter, error) {
+	var t *GametimeCounter
 
-	db, err := bolt.Open(*flagDB, 0600, nil)
+	db, err := bolt.Open(*gametimeFlagDB, 0600, nil)
 	if err != nil {
 		return t, err
 	}
 
-	return &TimeCounter{
+	return &GametimeCounter{
 		InProgress:   make(map[string]PlayingUser),
-		GametimeDB:   db,
+		DB:           db,
 		GametimeChan: make(chan PlayingUser),
 	}, nil
 }
 
-func (counter *TimeCounter) Listen() {
+func (counter *GametimeCounter) Listen() {
 	for {
 		pUser := <-counter.GametimeChan
 		go counter.EndGametime(pUser)
 	}
 }
 
-func (counter *TimeCounter) StartGametime(user discord.User, game discord.Game) {
+func (counter *GametimeCounter) StartGametime(user discord.User, game discord.Game) {
 	log.Printf("Starting to count for %s on %s", user.Name, game.Name)
 
 	pUser := PlayingUser{
@@ -95,12 +95,12 @@ func (counter *TimeCounter) StartGametime(user discord.User, game discord.Game) 
 	counter.InProgress[user.ID] = pUser
 }
 
-func (counter *TimeCounter) EndGametime(pUser PlayingUser) {
+func (counter *GametimeCounter) EndGametime(pUser PlayingUser) {
 	// Delete user from playing list
 	delete(counter.InProgress, pUser.UserID)
 
 	// Update game time
-	err := counter.GametimeDB.Update(func(t *bolt.Tx) error {
+	err := counter.DB.Update(func(t *bolt.Tx) error {
 		err := pUser.SaveGametime(t)
 		return err
 	})
@@ -112,9 +112,9 @@ func (counter *TimeCounter) EndGametime(pUser PlayingUser) {
 	log.Printf("Saved %s", pUser.UserID)
 }
 
-func (counter *TimeCounter) GetUserGametime(user discord.User) (map[string]int64, error) {
+func (counter *GametimeCounter) GetUserGametime(user discord.User) (map[string]int64, error) {
 	gameMap := make(map[string]int64)
-	err := counter.GametimeDB.View(func(t *bolt.Tx) error {
+	err := counter.DB.View(func(t *bolt.Tx) error {
 		b := t.Bucket([]byte(user.ID))
 		if b == nil {
 			return errors.New("user never played")
@@ -129,8 +129,8 @@ func (counter *TimeCounter) GetUserGametime(user discord.User) (map[string]int64
 	return gameMap, err
 }
 
-func (counter *TimeCounter) Snapshot() error {
-	return counter.GametimeDB.Update(func(t *bolt.Tx) (err error) {
+func (counter *GametimeCounter) Snapshot() error {
+	return counter.DB.Update(func(t *bolt.Tx) (err error) {
 		for _, pUser := range counter.InProgress {
 			err = pUser.SaveGametime(t)
 			if err != nil {
@@ -143,10 +143,10 @@ func (counter *TimeCounter) Snapshot() error {
 	})
 }
 
-func (counter *TimeCounter) Close() {
+func (counter *GametimeCounter) Close() {
 	// Save times for currently playing users
 	if err := counter.Snapshot(); err != nil {
 		log.Print(err)
 	}
-	counter.GametimeDB.Close()
+	counter.DB.Close()
 }

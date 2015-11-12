@@ -28,7 +28,7 @@ var (
 	games         map[string]discord.Game
 	totalCommands int
 
-	counter *TimeCounter
+	counter *GametimeCounter
 )
 
 type Command struct {
@@ -296,7 +296,7 @@ func main() {
 			Handler: helpCommand,
 		},
 		"reminder": Command{
-			Word:    "reminder <time [XhYmZs]> [<message>]",
+			Word:    "reminder <XhYmZs> [<message>]",
 			Help:    "Reminds you of something in X hours Y minutes Z seconds",
 			Handler: reminderCommand,
 		},

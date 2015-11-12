@@ -742,6 +742,17 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 	return message, err
 }
 
+// GetPrivateChannel returns the private channel corresponding to the user
+func (c *Client) GetPrivateChannel(user User) (pc PrivateChannel) {
+	for _, private := range c.PrivateChannels {
+		if private.Recipient.ID == user.ID {
+			pc = private
+			break
+		}
+	}
+	return pc
+}
+
 // CreatePrivateChannel creates a private channel with the given user
 func (c *Client) CreatePrivateChannel(user User) (PrivateChannel, error) {
 	var pChannel PrivateChannel
