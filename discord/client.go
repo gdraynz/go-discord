@@ -750,6 +750,11 @@ func (c *Client) GetPrivateChannel(user User) (pc PrivateChannel) {
 			break
 		}
 	}
+
+	if pc == nil {
+		pc, _ = c.CreatePrivateChannel(user)
+	}
+
 	return pc
 }
 
