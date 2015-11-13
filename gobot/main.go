@@ -186,11 +186,7 @@ func reminderCommand(message discord.Message, args ...string) {
 }
 
 func sourceCommand(message discord.Message, args ...string) {
-	client.SendMessage(message.ChannelID, "https://github.com/gdraynz/go-discord")
-}
-
-func avatarCommand(message discord.Message, args ...string) {
-	client.SendMessage(message.ChannelID, message.Author.GetAvatarURL())
+	client.SendMessage(message.ChannelID, "Here you go! <https://github.com/gdraynz/go-discord>")
 }
 
 func voiceCommand(message discord.Message, args ...string) {
@@ -249,6 +245,22 @@ func twitchCommand(message discord.Message, args ...string) {
 	client.SendMessage(message.ChannelID, tString)
 }
 
+func infoCommand(message discord.Message, args ...string) {
+	var iString string
+
+	iString = fmt.Sprintf(
+		"Your informations:\n"+
+			"`ID` %s\n"+
+			"`Name` %s\n"+
+			"`Avatar` <%s>",
+		message.Author.ID,
+		message.Author.Name,
+		message.Author.AvatarURL(),
+	)
+
+	client.SendMessage(message.ChannelID, iString)
+}
+
 func main() {
 	flag.Parse()
 
@@ -298,11 +310,6 @@ func main() {
 			Help:    "Shows the bot's source URL",
 			Handler: sourceCommand,
 		},
-		"avatar": Command{
-			Word:    "avatar",
-			Help:    "Shows your avatar URL",
-			Handler: avatarCommand,
-		},
 		"played": Command{
 			Word:    "played",
 			Help:    "Shows your game time",
@@ -313,16 +320,11 @@ func main() {
 			Help:    "Show the top 3 streamed games on twitch, or link to the most watched stream for the given game",
 			Handler: twitchCommand,
 		},
-		// "watch": Command{
-		// 	Word:    "watch <user> [<game>]",
-		// 	Help:    "Ping you when <user> starts to play <game>",
-		// 	Handler: watchCommand,
-		// },
-		// "unwatch": Command{
-		// 	Word:    "unwatch <user> [<game>]",
-		// 	Help:    "Stop notifying from the watch command",
-		// 	Handler: unwatchCommand,
-		// },
+		"info": Command{
+			Word:    "info",
+			Help:    "Shows the user informations",
+			Handler: infoCommand,
+		},
 	}
 
 	sigc := make(chan os.Signal, 1)
