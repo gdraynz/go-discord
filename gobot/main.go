@@ -28,7 +28,8 @@ var (
 	games         map[string]discord.Game
 	totalCommands int
 
-	counter *GametimeCounter
+	counter  *GametimeCounter
+	reminder *TimeReminder
 )
 
 type Command struct {
@@ -57,6 +58,8 @@ func onReady(ready discord.Ready) {
 			gameStarted(presence)
 		}
 	}
+
+	log.Print("Everything set up")
 }
 
 func messageReceived(message discord.Message) {
@@ -159,30 +162,23 @@ func reminderCommand(message discord.Message, args ...string) {
 			message.ChannelID,
 			fmt.Sprintf("Couldn't understand that :("),
 		)
-	} else {
-		var reminderMessage string
-		if len(args)-1 < 3 {
-			reminderMessage = fmt.Sprintf("@%s ping !", message.Author.Name)
-		} else {
-			reminderMessage = fmt.Sprintf(
-				"@%s %s !",
-				message.Author.Name,
-				strings.Join(args[3:], " "),
-			)
-		}
-		client.SendMessage(
-			message.ChannelID,
-			fmt.Sprintf("Aight! I will ping you in %s.", duration.String()),
-		)
-		log.Printf("Reminding %s in %s", message.Author.Name, duration.String())
-		time.AfterFunc(duration, func() {
-			client.SendMessageMention(
-				message.ChannelID,
-				reminderMessage,
-				[]discord.User{message.Author},
-			)
-		})
+		return
 	}
+
+	var reminderMessage string
+	if len(args)-1 < 3 {
+		reminderMessage = "`Reminder` ping !"
+	} else {
+		reminderMessage = fmt.Sprintf("`Reminder` %s", strings.Join(args[3:], " "))
+	}
+
+	client.SendMessage(
+		message.ChannelID,
+		fmt.Sprintf("Aight! I will ping you in %s.", duration.String()),
+	)
+
+	log.Printf("Reminding %s in %s", message.Author.Name, duration.String())
+	reminder.NewReminder(message.Author.ID, duration, reminderMessage)
 }
 
 func sourceCommand(message discord.Message, args ...string) {
@@ -264,9 +260,6 @@ func infoCommand(message discord.Message, args ...string) {
 func main() {
 	flag.Parse()
 
-	// time counter
-	counter, _ = NewCounter()
-
 	// Logging
 	var logfile *os.File
 	if !*flagStdout {
@@ -280,6 +273,12 @@ func main() {
 
 	// Twitch client
 	initTwitch()
+
+	// Time counter
+	counter, _ = NewCounter()
+
+	// Time reminder
+	reminder, _ = NewTimeReminder()
 
 	client = discord.Client{
 		OnReady:          onReady,
@@ -343,6 +342,8 @@ func main() {
 	if err := client.LoginFromFile(*flagConf); err != nil {
 		log.Fatal(err)
 	}
+
+	// log.Print(client.GetPrivateChannel(client.User))
 
 	client.Run()
 }

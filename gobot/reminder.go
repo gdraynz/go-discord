@@ -1,143 +1,158 @@
 package main
 
 import (
-	"encoding/binary"
+	"errors"
 	"flag"
 	"log"
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/gdraynz/go-discord/discord"
+	"github.com/satori/go.uuid"
 )
 
 var (
 	reminderFlagDB = flag.String("reminderdb", "reminder.db", "DB file for reminders")
 )
 
-// "UserID": {
-//		"reminder": {
-//			"StartTime": int,
-//			"RemindAt": int,
+// "<userid>": {
+//		"<uuid>": {
+//			"RemindAt": int (seconds),
 //			"Message": string,
 //			"UserID": string,
 //		}
 // }
 
 type Reminder struct {
-	DB        *bolt.DB
-	UserID    string
-	StartTime time.Time
-	RemindAt  time.Time
-	Message   string
+	DB       *bolt.DB
+	UUID     string
+	UserID   string
+	RemindAt time.Time
+	Message  string
 }
 
-func NewReminder(DB *bolt.DB, userID string, remindIn time.Duration, message string) error {
-
-	// Add reminder to DB (key, no value)
-	if err := reminder.DB.Update(func(t *bolt.Tx) error {
-		b, err := t.CreateBucketIfNotExists(reminder.UserID)
+func (reminder *Reminder) Save() error {
+	return reminder.DB.Update(func(t *bolt.Tx) (err error) {
+		userBucket, err := t.CreateBucketIfNotExists([]byte(reminder.UserID))
 		if err != nil {
 			return err
 		}
-		if err := b.Put(reminder.RemindKey(), []byte(reminder.Message)); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
+		rBucket, _ := userBucket.CreateBucketIfNotExists([]byte(reminder.UUID))
+
+		bRemind, _ := reminder.RemindAt.MarshalBinary()
+		err = rBucket.Put([]byte("RemindAt"), bRemind)
+		err = rBucket.Put([]byte("Message"), []byte(reminder.Message))
+		err = rBucket.Put([]byte("UserID"), []byte(reminder.UserID))
+
 		return err
-	}
-
-	log.Printf("New reminder for %s", userID)
-	reminder.Start()
-	return nil
-}
-
-func (reminder *Reminder) RemindKey() []byte {
-	remindKey := make([]byte, binary.MaxVarintLen64)
-	binary.PutVarint(remindKey, reminder.RemindAt.UnixNano())
-	return remindKey
+	})
 }
 
 func (reminder *Reminder) Start() {
 	time.AfterFunc(reminder.RemindAt.Sub(time.Now()), func() {
-		if err := reminder.Stop(); err != nil {
+		if err := reminder.Ping(); err != nil {
 			log.Printf("error Stop Reminder: %s", err)
 		}
 	})
 }
 
-func (reminder *Reminder) Stop() error {
-	// client.GetPri
+func (reminder *Reminder) Ping() error {
+	// Send private message
+	pc := client.GetPrivateChannel(client.GetUserByID(reminder.UserID))
+	pc.SendMessage(&client, reminder.Message)
+
+	log.Print("Reminder sent, deleting entry")
+
+	// Delete DB entry
 	return reminder.DB.Update(func(t *bolt.Tx) (err error) {
 		b := t.Bucket([]byte(reminder.UserID))
-		err = b.Delete(reminder.RemindKey())
-		return err
+		return b.DeleteBucket([]byte(reminder.UUID))
 	})
+
 }
 
 type TimeReminder struct {
-	DB *bolt.DB
+	RemindersSent int
+	DB            *bolt.DB
 }
 
 func NewTimeReminder() (*TimeReminder, error) {
 	var tr *TimeReminder
 
-	db, err := bolt.Open(*gametimeFlagDB, 0600, nil)
+	db, err := bolt.Open(*reminderFlagDB, 0600, nil)
 	if err != nil {
 		return tr, err
 	}
 
-	return &TimeReminder{
+	tr = &TimeReminder{
 		DB: db,
-	}, nil
-}
-
-func (tr *TimeReminder) NewReminderFromBucket(bucket *bolt.Bucket) {
-	remindAt, _ := binary.Varint(bucket.Get([]byte("RemindAt")))
-	if remindAt < time.Now().Unix() {
-		log.Print("Reminder already gone")
-		return
 	}
 
-	startTime, _ := binary.Varint(bucket.Get([]byte("StartTime")))
-	message := bucket.Get([]byte("Message"))
-	userID := bucket.Get([]byte("UserID"))
-
-	reminder := Reminder{
-		DB:        tr.DB,
-		UserID:    string(bucket.Get([]byte("UserID"))[:]),
-		StartTime: time.Unix(0, startTime),
-		RemindAt:  time.Unix(0, remindAt),
-		Message:   string(bucket.Get([]byte("Message"))[:]),
+	if err := tr.ReloadDB(); err != nil {
+		return tr, err
 	}
 
-	reminder.Start()
+	return tr, nil
 }
 
 func (tr *TimeReminder) NewReminder(userID string, remindIn time.Duration, message string) {
+	reminder := Reminder{
+		UUID:     uuid.NewV4().String(),
+		DB:       tr.DB,
+		UserID:   userID,
+		RemindAt: time.Now().Add(remindIn),
+		Message:  message,
+	}
 
+	if err := reminder.Save(); err != nil {
+		log.Print(err)
+	} else {
+		reminder.Start()
+	}
+}
+
+func (tr *TimeReminder) NewReminderFromBucket(bUID []byte, bucket *bolt.Bucket) error {
+	var remindAt time.Time
+
+	userID := string(bucket.Get([]byte("UserID"))[:])
+
+	remindAt.UnmarshalBinary(bucket.Get([]byte("RemindAt")))
+	if remindAt.Unix() < time.Now().Unix() {
+		log.Print("Reminder already gone")
+		return errors.New("reminder gone")
+	}
+
+	reminder := Reminder{
+		UUID:     string(bUID),
+		DB:       tr.DB,
+		UserID:   userID,
+		RemindAt: remindAt,
+		Message:  string(bucket.Get([]byte("Message"))[:]),
+	}
+
+	reminder.Start()
+	return nil
 }
 
 func (tr *TimeReminder) ReloadDB() error {
-	return tr.DB.View(func(t *bolt.Tx) error {
+	return tr.DB.Update(func(t *bolt.Tx) error {
 		// Search through each user
-		t.ForEach(func(id []byte, b *bolt.Bucket) error {
-			userID := string(name[:])
+		t.ForEach(func(userID []byte, b *bolt.Bucket) error {
 			// Search through each reminder
-			b.ForEach(func(reminderBucket []byte, value []byte) error {
-				if message == nil {
-					rBucket, _ := b.CreateBucketIfNotExists(reminderBucket)
-					tr.NewReminderFromBucket(rBucket)
+			b.ForEach(func(bUID []byte, value []byte) error {
+				if value == nil {
+					rBucket := b.Bucket(bUID)
+					if rBucket != nil {
+						if err := tr.NewReminderFromBucket(bUID, rBucket); err != nil {
+							b.DeleteBucket(bUID)
+						}
+					}
 				} else {
 					log.Print("not a bucket, should not happen")
 				}
+				return nil
 			})
 			return nil
 		})
 		return nil
 	})
-}
-
-func (tr *TimeReminder) Remind(user *discord.User, duration time.Duration, message string) error {
-	return NewReminder(tr.DB, user.ID, duration, message)
 }

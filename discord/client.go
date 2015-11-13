@@ -744,14 +744,17 @@ func (c *Client) SendMessageMention(channelID string, content string, mentions [
 
 // GetPrivateChannel returns the private channel corresponding to the user
 func (c *Client) GetPrivateChannel(user User) (pc PrivateChannel) {
+	found := false
+
 	for _, private := range c.PrivateChannels {
 		if private.Recipient.ID == user.ID {
 			pc = private
+			found = true
 			break
 		}
 	}
 
-	if pc == nil {
+	if !found {
 		pc, _ = c.CreatePrivateChannel(user)
 	}
 
@@ -764,8 +767,10 @@ func (c *Client) CreatePrivateChannel(user User) (PrivateChannel, error) {
 
 	response, err := c.request(
 		"POST",
-		fmt.Sprintf("%s/channels", apiUsers, user.ID),
-		nil,
+		fmt.Sprintf("%s/%s/channels", apiUsers, c.User.ID),
+		map[string]string{
+			"recipient_id": user.ID,
+		},
 	)
 
 	if err != nil {
