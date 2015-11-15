@@ -47,16 +47,20 @@ type Client struct {
 	OnServerMemberAdd      func(Member)
 	OnServerMemberDelete   func(Member)
 
+	// Reconnect upon websocket close server-side (EOF)
+	Reconnect bool
+
 	// Print websocket dumps (may be huge)
 	Debug bool
-
+	// Accessible, but you shouldn't modify these (I may put some getters there)
 	User            User
 	Servers         map[string]Server
 	PrivateChannels map[string]PrivateChannel
 
-	wsConn  *websocket.Conn
-	gateway gatewayStruct
-	token   tokenStruct
+	wsConn          *websocket.Conn
+	gateway         gatewayStruct
+	token           tokenStruct
+	keepaliveTicker *time.Ticker
 }
 
 func (c *Client) doRequest(req *http.Request) ([]byte, error) {
@@ -125,8 +129,8 @@ func (c *Client) handleReady(eventStr []byte) {
 
 	// WebSocket keepalive
 	go func() {
-		ticker := time.NewTicker(ready.Data.HeartbeatInterval * time.Millisecond)
-		for range ticker.C {
+		c.keepaliveTicker = time.NewTicker(ready.Data.HeartbeatInterval * time.Millisecond)
+		for range c.keepaliveTicker.C {
 			timestamp := int(time.Now().Unix())
 			log.Printf("Sending keepalive with timestamp %d", timestamp)
 			c.wsConn.WriteJSON(map[string]int{
@@ -958,20 +962,24 @@ func (c *Client) Run() {
 	log.Print("Connected")
 	c.wsConn = conn
 
-	c.doHandshake()
+	for c.Reconnect {
+		c.doHandshake()
 
-	for {
-		_, message, err := c.wsConn.ReadMessage()
-		if err != nil {
-			log.Print(err)
-			break
+		for {
+			_, message, err := c.wsConn.ReadMessage()
+			if err != nil {
+				log.Print(err)
+				c.keepaliveTicker.Stop()
+				break
+			}
+			go c.handleEvent(message)
 		}
-		go c.handleEvent(message)
 	}
 }
 
 // Stop closes the WebSocket connection
 func (c *Client) Stop() {
 	log.Print("Closing connection")
+	c.keepaliveTicker.Stop()
 	c.wsConn.Close()
 }
