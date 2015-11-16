@@ -962,7 +962,7 @@ func (c *Client) Run() {
 	log.Print("Connected")
 	c.wsConn = conn
 
-	for c.Reconnect {
+	for i := 0; i < 1 || c.Reconnect; i++ {
 		c.doHandshake()
 
 		for {
