@@ -15,6 +15,11 @@ var (
 	gametimeFlagDB = flag.String("gametimedb", "gametime.db", "DB file for game time")
 )
 
+// TODO: migrate that in seconds...
+// "<user id>": {
+//		"<game id>": "<time in nanoseconds>"
+// }
+
 type PlayingUser struct {
 	UserID    string
 	StartTime time.Time

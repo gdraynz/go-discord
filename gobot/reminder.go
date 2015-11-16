@@ -14,11 +14,11 @@ var (
 	reminderFlagDB = flag.String("reminderdb", "reminder.db", "DB file for reminders")
 )
 
-// "<userid>": {
+// "<user id>": {
 //		"<uuid>": {
-//			"RemindAt": int (seconds),
-//			"Message": string,
-//			"UserID": string,
+//			"RemindAt": "<unix time in seconds>",
+//			"Message": "<message>",
+//			"UserID": "<user id>",
 //		}
 // }
 
