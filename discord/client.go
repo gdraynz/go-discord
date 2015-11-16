@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -18,6 +19,7 @@ import (
 
 const (
 	apiBase     = "https://discordapp.com/api"
+	apiInvite   = apiBase + "/invite"
 	apiGateway  = apiBase + "/gateway"
 	apiUsers    = apiBase + "/users"
 	apiRegister = apiBase + "/auth/register"
@@ -883,6 +885,19 @@ func (c *Client) EditChannel(channel Channel, params map[string]interface{}) err
 		"PATCH",
 		fmt.Sprintf("%s/%s", apiChannels, channel.ID),
 		params,
+	)
+	return err
+}
+
+func (c *Client) AcceptInvite(invite string) error {
+	rxp, _ := regexp.Compile("(https?://)?discord.gg/(.+)")
+	_, err := c.request(
+		"POST",
+		// fmt.Sprintf("%s/%s", apiInvite, ),
+		map[string]string{
+			"name": name,
+			"type": channelType,
+		},
 	)
 	return err
 }
