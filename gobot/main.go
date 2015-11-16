@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -36,6 +37,20 @@ type Command struct {
 	Word    string
 	Help    string
 	Handler func(discord.Message, ...string)
+}
+
+func getGameByName(gameName string) (res discord.Game, err error) {
+	found := false
+	for _, game := range games {
+		if game.Name == gameName {
+			res = game
+			found = true
+		}
+	}
+	if !found {
+		err = errors.New("game not found")
+	}
+	return res, err
 }
 
 func onReady(ready discord.Ready) {
@@ -201,19 +216,41 @@ func voiceCommand(message discord.Message, args ...string) {
 func playedCommand(message discord.Message, args ...string) {
 	var pString string
 
-	userMap, err := counter.GetUserGametime(message.Author)
-
-	if err != nil {
-		pString = "I don't remember you playing anything I know :("
-	} else {
-		pString = "As far as I'm aware, you played:\n"
-		for id, gametime := range userMap {
-			pString += fmt.Sprintf(
-				"`%s` %s\n",
-				games[id].Name,
-				getDurationString(time.Duration(gametime)),
-			)
+	if len(args)-1 == 1 {
+		userMap, err := counter.GetUserGametime(message.Author)
+		if err != nil {
+			pString = "I don't remember you playing anything I know :("
+		} else {
+			pString = "As far as I'm aware, you played:\n"
+			for id, gametime := range userMap {
+				pString += fmt.Sprintf(
+					"`%s` %s\n",
+					games[id].Name,
+					getDurationString(time.Duration(gametime)),
+				)
+			}
 		}
+	} else if len(args)-1 == 2 && args[2] == "reset" {
+		if err := counter.ResetGametime(message.Author); err != nil {
+			pString = errorMessage
+		} else {
+			pString = "Pew! Everything gone!"
+		}
+	} else if len(args)-1 >= 3 {
+		gameName := strings.Join(args[3:], " ")
+		log.Printf("resetting '%s'", gameName)
+		game, err := getGameByName(gameName)
+		if err != nil {
+			pString = "I don't know that game :("
+		} else {
+			if err := counter.ResetOneGametime(message.Author, game); err != nil {
+				pString = "Did you ever played that game ?"
+			} else {
+				pString = fmt.Sprintf("Pew! Game time for %s resetted!", game.Name)
+			}
+		}
+	} else {
+		pString = errorMessage
 	}
 
 	client.SendMessage(message.ChannelID, pString)
@@ -310,7 +347,7 @@ func main() {
 			Handler: sourceCommand,
 		},
 		"played": Command{
-			Word:    "played",
+			Word:    "played [reset [<game>]]",
 			Help:    "Shows your game time",
 			Handler: playedCommand,
 		},

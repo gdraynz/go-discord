@@ -112,6 +112,22 @@ func (counter *GametimeCounter) EndGametime(pUser PlayingUser) {
 	log.Printf("Saved %s", pUser.UserID)
 }
 
+func (counter *GametimeCounter) ResetGametime(user discord.User) error {
+	return counter.DB.Update(func(t *bolt.Tx) error {
+		return t.DeleteBucket([]byte(user.ID))
+	})
+}
+
+func (counter *GametimeCounter) ResetOneGametime(user discord.User, game discord.Game) error {
+	return counter.DB.Update(func(t *bolt.Tx) error {
+		b := t.Bucket([]byte(user.ID))
+		if b == nil {
+			return errors.New("User unknown")
+		}
+		return b.Delete([]byte(string(game.ID)))
+	})
+}
+
 func (counter *GametimeCounter) GetUserGametime(user discord.User) (map[string]int64, error) {
 	gameMap := make(map[string]int64)
 	err := counter.DB.View(func(t *bolt.Tx) error {
