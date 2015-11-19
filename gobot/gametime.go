@@ -129,6 +129,10 @@ func (counter *GametimeCounter) ResetOneGametime(user discord.User, game discord
 		if b == nil {
 			return errors.New("User unknown")
 		}
+		// If only one game, delete bucket
+		if b.Stats().KeyN == 1 {
+			return t.DeleteBucket([]byte(user.ID))
+		}
 		return b.Delete([]byte(string(game.ID)))
 	})
 }

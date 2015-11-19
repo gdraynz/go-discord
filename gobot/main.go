@@ -41,8 +41,9 @@ type Command struct {
 
 func getGameByName(gameName string) (res discord.Game, err error) {
 	found := false
+	lowerGameName := strings.ToLower(gameName)
 	for _, game := range games {
-		if game.Name == gameName {
+		if strings.ToLower(game.Name) == lowerGameName {
 			res = game
 			found = true
 		}
