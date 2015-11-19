@@ -194,7 +194,7 @@ func reminderCommand(message discord.Message, args ...string) {
 	)
 
 	log.Printf("Reminding %s in %s", message.Author.Name, duration.String())
-	reminder.NewReminder(message.Author.ID, duration, reminderMessage)
+	reminder.NewReminder(message.Author, duration, reminderMessage)
 }
 
 func sourceCommand(message discord.Message, args ...string) {
