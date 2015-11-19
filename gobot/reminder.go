@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/gdraynz/go-discord/discord"
 	"github.com/satori/go.uuid"
 )
 
@@ -94,11 +95,11 @@ func NewTimeReminder() (*TimeReminder, error) {
 	return tr, nil
 }
 
-func (tr *TimeReminder) NewReminder(userID string, remindIn time.Duration, message string) {
+func (tr *TimeReminder) NewReminder(user discord.User, remindIn time.Duration, message string) {
 	reminder := Reminder{
 		UUID:     uuid.NewV4().String(),
 		DB:       tr.DB,
-		UserID:   userID,
+		UserID:   user.ID,
 		RemindAt: time.Now().Add(remindIn),
 		Message:  message,
 	}
@@ -131,6 +132,16 @@ func (tr *TimeReminder) NewReminderFromBucket(bUID []byte, bucket *bolt.Bucket) 
 
 	reminder.Start()
 	return nil
+}
+
+func (tr *TimeReminder) GetUserReminders(user discord.User) (map[string]time.Time, error) {
+	// res := make(map[string])
+	err := tr.DB.View(func(t *bolt.Tx) error {
+
+	})
+	if err != nil {
+		return nil
+	}
 }
 
 func (tr *TimeReminder) ReloadDB() error {
