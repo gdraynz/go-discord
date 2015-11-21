@@ -51,7 +51,7 @@ It currently handles some fun features :
 
 ### Todo
 
-* I need useful ideas :(
+* Most of the audio functionalities have been worked on by many others libraries and integrated into Go by [discordgo](https://github.com/bwmarrin/dgvoice). I will try to integrate these into go-discord as soon as possible.
 
 ## Related libraries
 
