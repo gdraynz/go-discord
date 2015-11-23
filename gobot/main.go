@@ -167,8 +167,32 @@ func helpCommand(message discord.Message, args ...string) {
 	client.SendMessage(message.ChannelID, toSend)
 }
 
+func listRemindersCommand(message discord.Message) {
+	list, err := reminder.GetUserReminders(message.Author)
+	if err != nil {
+		client.SendMessage(message.ChannelID, errorMessage)
+		return
+	}
+
+	rString := "Your reminders :\n"
+	for _, rem := range list {
+		rString += fmt.Sprintf(
+			"`%s` in `%s` -> %s\n",
+			rem.UUID,
+			getDurationString(rem.DurationLeft()),
+			rem.Message,
+		)
+	}
+	client.SendMessage(message.ChannelID, rString)
+}
+
 func reminderCommand(message discord.Message, args ...string) {
 	if len(args)-1 < 2 {
+		return
+	}
+
+	if args[2] == "list" {
+		listRemindersCommand(message)
 		return
 	}
 

@@ -31,6 +31,10 @@ type Reminder struct {
 	Message  string
 }
 
+func (reminder *Reminder) DurationLeft() time.Duration {
+	return reminder.RemindAt.Sub(time.Now())
+}
+
 func (reminder *Reminder) Save() error {
 	return reminder.DB.Update(func(t *bolt.Tx) (err error) {
 		userBucket, err := t.CreateBucketIfNotExists([]byte(reminder.UserID))
@@ -49,7 +53,7 @@ func (reminder *Reminder) Save() error {
 }
 
 func (reminder *Reminder) Start() {
-	time.AfterFunc(reminder.RemindAt.Sub(time.Now()), func() {
+	time.AfterFunc(reminder.DurationLeft(), func() {
 		if err := reminder.Ping(); err != nil {
 			log.Printf("error Stop Reminder: %s", err)
 		}
@@ -134,14 +138,41 @@ func (tr *TimeReminder) NewReminderFromBucket(bUID []byte, bucket *bolt.Bucket) 
 	return nil
 }
 
-func (tr *TimeReminder) GetUserReminders(user discord.User) (map[string]time.Time, error) {
-	// res := make(map[string])
+func (tr *TimeReminder) GetUserReminders(user discord.User) ([]Reminder, error) {
+	res := []Reminder{}
 	err := tr.DB.View(func(t *bolt.Tx) error {
-
+		b := t.Bucket([]byte(user.ID))
+		if b == nil {
+			return errors.New("User does not exist")
+		}
+		b.ForEach(func(bucketUUID []byte, shouldBeNil []byte) error {
+			if shouldBeNil == nil {
+				rBucket := b.Bucket(bucketUUID)
+				if rBucket != nil {
+					var remindAt time.Time
+					remindAt.UnmarshalBinary(rBucket.Get([]byte("RemindAt")))
+					r := Reminder{
+						UUID:     string(bucketUUID[:]),
+						RemindAt: remindAt,
+						Message:  string(rBucket.Get([]byte("Message"))[:]),
+					}
+					res = append(res, r)
+				}
+			} else {
+				log.Print("not a bucket, should not happen")
+			}
+			return nil
+		})
+		return nil
 	})
 	if err != nil {
-		return nil
+		return res, err
 	}
+	return res, nil
+}
+
+func (tr *TimeReminder) RemoveReminder(user discord.User, UUID string) error {
+	return nil
 }
 
 func (tr *TimeReminder) ReloadDB() error {
@@ -149,12 +180,12 @@ func (tr *TimeReminder) ReloadDB() error {
 		// Search through each user
 		t.ForEach(func(userID []byte, b *bolt.Bucket) error {
 			// Search through each reminder
-			b.ForEach(func(bUID []byte, value []byte) error {
-				if value == nil {
-					rBucket := b.Bucket(bUID)
+			b.ForEach(func(bucketUUID []byte, shouldBeNil []byte) error {
+				if shouldBeNil == nil {
+					rBucket := b.Bucket(bucketUUID)
 					if rBucket != nil {
-						if err := tr.NewReminderFromBucket(bUID, rBucket); err != nil {
-							b.DeleteBucket(bUID)
+						if err := tr.NewReminderFromBucket(bucketUUID, rBucket); err != nil {
+							b.DeleteBucket(bucketUUID)
 						}
 					}
 				} else {
