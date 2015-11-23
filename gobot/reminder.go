@@ -52,8 +52,8 @@ func (reminder *Reminder) Save() error {
 	})
 }
 
-func (reminder *Reminder) Start() {
-	time.AfterFunc(reminder.DurationLeft(), func() {
+func (reminder *Reminder) Start() *time.Timer {
+	return time.AfterFunc(reminder.DurationLeft(), func() {
 		if err := reminder.Ping(); err != nil {
 			log.Printf("error Stop Reminder: %s", err)
 		}
@@ -76,8 +76,8 @@ func (reminder *Reminder) Ping() error {
 }
 
 type TimeReminder struct {
-	RemindersSent int
-	DB            *bolt.DB
+	Reminders map[string]*time.Timer
+	DB        *bolt.DB
 }
 
 func NewTimeReminder() (*TimeReminder, error) {
@@ -89,7 +89,8 @@ func NewTimeReminder() (*TimeReminder, error) {
 	}
 
 	tr = &TimeReminder{
-		DB: db,
+		DB:        db,
+		Reminders: make(map[string]*time.Timer),
 	}
 
 	if err := tr.ReloadDB(); err != nil {
@@ -111,7 +112,7 @@ func (tr *TimeReminder) NewReminder(user discord.User, remindIn time.Duration, m
 	if err := reminder.Save(); err != nil {
 		log.Print(err)
 	} else {
-		reminder.Start()
+		tr.Reminders[reminder.UUID] = reminder.Start()
 	}
 }
 
@@ -134,7 +135,7 @@ func (tr *TimeReminder) NewReminderFromBucket(bUID []byte, bucket *bolt.Bucket) 
 		Message:  string(bucket.Get([]byte("Message"))[:]),
 	}
 
-	reminder.Start()
+	tr.Reminders[reminder.UUID] = reminder.Start()
 	return nil
 }
 
@@ -172,6 +173,18 @@ func (tr *TimeReminder) GetUserReminders(user discord.User) ([]Reminder, error) 
 }
 
 func (tr *TimeReminder) RemoveReminder(user discord.User, UUID string) error {
+	if err := tr.DB.Update(func(t *bolt.Tx) error {
+		// Search through each user
+		b := t.Bucket([]byte(user.ID))
+		if b == nil {
+			return errors.New("User does not exist")
+		}
+		return b.DeleteBucket([]byte(UUID))
+	}); err != nil {
+		return err
+	}
+	tr.Reminders[UUID].Stop()
+	delete(tr.Reminders, UUID)
 	return nil
 }
 

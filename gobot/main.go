@@ -174,6 +174,11 @@ func listRemindersCommand(message discord.Message) {
 		return
 	}
 
+	if len(list) < 1 {
+		client.SendMessage(message.ChannelID, "You got no reminder :(")
+		return
+	}
+
 	rString := "Your reminders :\n"
 	for _, rem := range list {
 		rString += fmt.Sprintf(
@@ -195,6 +200,17 @@ func reminderCommand(message discord.Message, args ...string) {
 		listRemindersCommand(message)
 		return
 	}
+	// } else if args[2] == "delete" {
+	// 	if len(args)-1 < 3 {
+	// 		return
+	// 	}
+	// 	if err := reminder.RemoveReminder(message.Author, args[3]); err != nil {
+	// 		client.SendMessage(message.ChannelID, errorMessage)
+	// 	} else {
+	// 		client.SendMessage(message.ChannelID, "Reminder deleted!")
+	// 	}
+	// 	return
+	// }
 
 	duration, err := time.ParseDuration(args[2])
 	if err != nil {
