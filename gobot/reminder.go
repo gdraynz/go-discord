@@ -101,7 +101,7 @@ func NewTimeReminder() (*TimeReminder, error) {
 
 func (tr *TimeReminder) NewReminder(user discord.User, remindIn time.Duration, message string) {
 	reminder := Reminder{
-		UUID:     uuid.NewV4().String(),
+		UUID:     uuid.NewV4().String()[:8],
 		DB:       tr.DB,
 		UserID:   user.ID,
 		RemindAt: time.Now().Add(remindIn),
