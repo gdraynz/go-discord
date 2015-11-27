@@ -117,6 +117,31 @@ func (counter *GametimeCounter) EndGametime(pUser PlayingUser) {
 	log.Printf("Saved %s", pUser.UserID)
 }
 
+func (counter *GametimeCounter) ServerGametime(server discord.Server) (map[string]int64, error) {
+	gameMap := make(map[string]int64)
+	err := counter.DB.View(func(t *bolt.Tx) error {
+		for _, member := range server.Members {
+			b := t.Bucket([]byte(member.User.ID))
+			if b == nil {
+				continue
+			}
+			// Iterate through all games
+			b.ForEach(func(gameID []byte, nanoTime []byte) error {
+				_, ok := gameMap[string(gameID[:])]
+				if ok {
+					add, _ := binary.Varint(nanoTime)
+					gameMap[string(gameID[:])] += add
+				} else {
+					gameMap[string(gameID[:])], _ = binary.Varint(nanoTime)
+				}
+				return nil
+			})
+		}
+		return nil
+	})
+	return gameMap, err
+}
+
 func (counter *GametimeCounter) ResetGametime(user discord.User) error {
 	return counter.DB.Update(func(t *bolt.Tx) error {
 		return t.DeleteBucket([]byte(user.ID))
