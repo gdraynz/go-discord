@@ -277,21 +277,21 @@ func playedCommand(message discord.Message, args ...string) {
 		} else {
 			pString = "Pew! Everything gone!"
 		}
-	} else if len(args)-1 == 2 && args[2] == "server" {
-		gameMap, err := counter.ServerGametime(message.GetServer(&client))
-		if err != nil {
-			log.Print(err)
-			pString = "I don't remember this server playing anything I know :("
-		} else {
-			pString = "This server played:\n"
-			for id, gametime := range gameMap {
-				pString += fmt.Sprintf(
-					"`%s` %s\n",
-					games[id].Name,
-					getDurationString(time.Duration(gametime)),
-				)
-			}
-		}
+	// } else if len(args)-1 == 2 && args[2] == "server" {
+	// 	gameMap, err := counter.ServerGametime(message.GetServer(&client))
+	// 	if err != nil {
+	// 		log.Print(err)
+	// 		pString = "I don't remember this server playing anything I know :("
+	// 	} else {
+	// 		pString = "This server played:\n"
+	// 		for id, gametime := range gameMap {
+	// 			pString += fmt.Sprintf(
+	// 				"`%s` %s\n",
+	// 				games[id].Name,
+	// 				getDurationString(time.Duration(gametime)),
+	// 			)
+	// 		}
+	// 	}
 	} else if len(args)-1 >= 3 {
 		gameName := strings.Join(args[3:], " ")
 		log.Printf("resetting '%s'", gameName)
@@ -405,7 +405,7 @@ func main() {
 			Handler: sourceCommand,
 		},
 		"played": Command{
-			Word:    "played [server | reset [<game>]]",
+			Word:    "played [reset [<game>]]",
 			Help:    "Shows your game time",
 			Handler: playedCommand,
 		},
