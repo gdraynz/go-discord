@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	VERSION     = "v1.0.0"
 	apiBase     = "https://discordapp.com/api"
 	apiGateway  = apiBase + "/gateway"
 	apiUsers    = apiBase + "/users"
@@ -65,6 +66,12 @@ type Client struct {
 
 func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	client := &http.Client{}
+
+	req.Header.Set(
+		"User-Agent",
+		fmt.Sprintf("DiscordBot (https://github.com/gdraynz/go-discord, %s)", VERSION),
+	)
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
