@@ -24,4 +24,4 @@ _testmain.go
 *.prof
 
 conf.json
-go-discord
+gobot
