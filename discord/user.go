@@ -1,7 +1,6 @@
 package discord
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
@@ -47,11 +46,16 @@ func (u *User) CreatePrivateChannel(client *Client) (PrivateChannel, error) {
 
 // Presence defines the status of a User
 type Presence struct {
-	Status   string      `json:"status"`
-	GameID   json.Number `json:"game_id,Number"`
-	User     User        `json:"user"`
-	ServerID string      `json:"guild_id"`
-	Roles    []string    `json:"roles"`
+	Status   string   `json:"status"`
+	Game     Game     `json:"game"`
+	User     User     `json:"user"`
+	ServerID string   `json:"guild_id"`
+	Roles    []string `json:"roles"`
+}
+
+// Game defines a game played in a presence update
+type Game struct {
+	Name string `json:"name"`
 }
 
 // GetUser returns the User object of this presence event
