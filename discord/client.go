@@ -749,32 +749,6 @@ func (c *Client) SendMessage(channelID string, content string) (Message, error) 
 	return message, err
 }
 
-// SendMessageMention sends a message to the given channel mentionning users
-// XXX: string sent as channel ID because of Channel/PrivateChannel differences
-func (c *Client) SendMessageMention(channelID string, content string, mentions []User) (Message, error) {
-	var message Message
-
-	var userMentions []string
-	for _, user := range mentions {
-		userMentions = append(userMentions, user.ID)
-	}
-
-	response, err := c.request(
-		"POST",
-		fmt.Sprintf(apiChannels+"/%s/messages", channelID),
-		map[string]interface{}{
-			"content":  content,
-			"mentions": userMentions,
-		},
-	)
-
-	if err := json.Unmarshal(response, &message); err != nil {
-		return message, err
-	}
-
-	return message, err
-}
-
 // GetPrivateChannel returns the private channel corresponding to the user
 func (c *Client) GetPrivateChannel(user User) (pc PrivateChannel) {
 	found := false
@@ -829,8 +803,7 @@ func (c *Client) AckMessage(channel Channel, message Message) error {
 	return err
 }
 
-// EditMessage modifies the message from the channel with the given ID.
-// It takes a new content string and a list of mentions.
+// EditMessage modifies the message from the channel with the given ID
 func (c *Client) EditMessage(channelID string, messageID string, content string) (Message, error) {
 	var message Message
 
