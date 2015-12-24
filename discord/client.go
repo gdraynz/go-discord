@@ -15,13 +15,14 @@ import (
 const (
 	VERSION     = "v1.0.0"
 	apiBase     = "https://discordapp.com/api"
-	apiGateway  = apiBase + "/gateway"
-	apiUsers    = apiBase + "/users"
-	apiRegister = apiBase + "/auth/register"
 	apiLogin    = apiBase + "/auth/login"
 	apiLogout   = apiBase + "/auth/logout"
-	apiServers  = apiBase + "/guilds"
+	apiRegister = apiBase + "/auth/register"
 	apiChannels = apiBase + "/channels"
+	apiGateway  = apiBase + "/gateway"
+	apiServers  = apiBase + "/guilds"
+	apiInvite   = apiBase + "/invite"
+	apiUsers    = apiBase + "/users"
 	apiVoice    = apiBase + "/voice"
 )
 
@@ -713,6 +714,16 @@ func (c *Client) GetUserByID(userID string) User {
 		}
 	}
 	return res
+}
+
+// JoinServer receive an invite ID and tries to join the corresponding server/channel
+func (c *Client) JoinServer(inviteID string) error {
+	_, err := c.request(
+		"POST",
+		fmt.Sprintf("%s/%s", apiInvite, inviteID),
+		nil,
+	)
+	return err
 }
 
 // SendMessage sends a message to the given channel
