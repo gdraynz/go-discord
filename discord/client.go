@@ -3,17 +3,13 @@ package discord
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/tcolgate/mp3"
 )
 
 const (
@@ -640,6 +636,21 @@ func (c *Client) LoginFromFile(filename string) error {
 	return c.Login(creds.Email, creds.Password)
 }
 
+// SendPresence set the given game name as playing to discord
+func (c *Client) SendPresence(game string) error {
+	log.Printf("Sending presence for game %s", game)
+	data := map[string]interface{}{
+		"op": 3,
+		"d": presenceUpdate{
+			Game: Game{
+				Name: game,
+			},
+			IdleSince: nil,
+		},
+	}
+	return c.wsConn.WriteJSON(data)
+}
+
 // GetChannel returns the Channel object from the given channel name on the given server name
 func (c *Client) GetChannel(server Server, channelName string) Channel {
 	var res Channel
@@ -916,45 +927,6 @@ func (c *Client) GetRegion(server Server) (Region, error) {
 	}
 
 	return region, nil
-}
-
-func (c *Client) SendAudio(channel Channel, file string) error {
-	if channel.Type != "voice" {
-		return errors.New("SendAudio: require a voice channel")
-	}
-
-	region, err := c.GetRegion(c.Servers[channel.ServerID])
-	if err != nil {
-		return err
-	}
-	remoteAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(
-		"%s:%d", region.Hostname, region.Port,
-	))
-	if err != nil {
-		return err
-	}
-
-	udp, err := net.DialUDP("udp", nil, remoteAddr)
-	if err != nil {
-		return err
-	}
-	defer udp.Close()
-	log.Printf("UDP connected to %s", udp.RemoteAddr().String())
-
-	fReader, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-
-	decoder := mp3.NewDecoder(fReader)
-
-	var f mp3.Frame
-	if err := decoder.Decode(&f); err != nil {
-		return nil
-	}
-	log.Print(f.Duration())
-
-	return nil
 }
 
 // Run init the WebSocket connection and starts listening on it
